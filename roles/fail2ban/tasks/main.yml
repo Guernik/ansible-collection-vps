@@ -6,7 +6,7 @@
       vps_fail2ban_mail_enabled is true but no address is set. Set
       vps_notify_email (applies to every role) or vps_fail2ban_destemail.
     quiet: true
-  when: vps_fail2ban_mail_enabled
+  when: vps_fail2ban_mail_enabled | bool
 
 - name: Install fail2ban
   ansible.builtin.apt:
@@ -21,7 +21,7 @@
       - whois
       - dnsutils
     state: present
-  when: vps_fail2ban_mail_enabled
+  when: vps_fail2ban_mail_enabled | bool
 
 - name: Install the notification action
   ansible.builtin.copy:
@@ -30,7 +30,7 @@
     owner: root
     group: root
     mode: "0644"
-  when: vps_fail2ban_mail_enabled
+  when: vps_fail2ban_mail_enabled | bool
   notify: Restart fail2ban
 
 - name: Deploy jail.local

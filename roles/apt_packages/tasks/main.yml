@@ -2,7 +2,7 @@
 - name: Clear the APT cache
   ansible.builtin.apt:
     autoclean: true
-  when: vps_apt_autoclean
+  when: vps_apt_autoclean | bool
   changed_when: false
 
 - name: Install packages

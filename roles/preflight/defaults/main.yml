@@ -1,0 +1,25 @@
+---
+# Distributions this collection is tested against, as
+# "<distribution>": [<supported release codenames>].
+#
+# The floor is set by sshd: the roles write a drop-in under
+# /etc/ssh/sshd_config.d/ (OpenSSH 8.2+) and use
+# KbdInteractiveAuthentication, which OpenSSH only understands from 8.7. That
+# rules out Ubuntu 20.04, whose 8.2 still calls it
+# ChallengeResponseAuthentication and would reject the config.
+#
+# fail2ban's systemd backend and bantime.incremental need fail2ban 0.11+, which
+# is satisfied everywhere in this list.
+# Only releases actually exercised end to end are listed. Others very likely
+# work - nothing in these roles branches on the release - but "likely" is not
+# tested, so they need vps_preflight_strict=false to opt in.
+vps_supported_releases:
+  Debian:
+    - bookworm
+  Ubuntu:
+    - noble
+
+# Refuse to run on anything not listed. Set false to attempt an untested release
+# anyway: the run still warns, and everything may well work, but nothing here
+# has been exercised against it.
+vps_preflight_strict: true

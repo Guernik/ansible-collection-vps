@@ -34,6 +34,10 @@
       tags: always
 
   roles:
+    # First, so an unsupported OS fails immediately with a clear reason rather
+    # than part-way through on a confusing apt or sshd error.
+    - role: guernik.vps.preflight
+      tags: always
     - role: guernik.vps.hostname
       tags: hostname
     - role: guernik.vps.users

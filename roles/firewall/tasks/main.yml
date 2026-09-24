@@ -26,7 +26,7 @@
     rule: allow
     port: "{{ vps_ssh_port }}"
     comment: ssh
-  when: vps_firewall_ssh_enabled
+  when: vps_firewall_ssh_enabled | bool
 
 - name: Remove the SSH rule
   community.general.ufw:
@@ -52,4 +52,4 @@
   community.general.ufw:
     state: enabled
     policy: "{{ vps_firewall_default_incoming }}"
-  when: vps_firewall_enabled
+  when: vps_firewall_enabled | bool

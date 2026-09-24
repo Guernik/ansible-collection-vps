@@ -1,6 +1,6 @@
 ---
 - name: Configure the daily log digest
-  when: vps_logwatch_enabled
+  when: vps_logwatch_enabled | bool
   block:
     - name: Assert the digest recipient is set
       ansible.builtin.assert:
@@ -40,5 +40,5 @@
           /usr/sbin/logwatch --range {{ vps_logwatch_range }}
           --detail {{ vps_logwatch_detail }}
           --mailto {{ vps_logwatch_email_to }}
-      when: vps_logwatch_send_test_report
+      when: vps_logwatch_send_test_report | bool
       changed_when: false

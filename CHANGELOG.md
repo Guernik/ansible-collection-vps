@@ -9,6 +9,7 @@ First release. Extracted from a private single-host repository and generalized:
 
 ### Added
 
+- `preflight` - refuse to run on an OS the collection does not support.
 - `secure_sshd` - hardened sshd drop-in, validated with `sshd -t` before install.
 - `hostname` - hostname, `/etc/hosts` mapping, machine name in `/etc/environment`.
 - `users` - users, groups, SSH keys (generated locally or supplied), sudo, docker group.
@@ -26,3 +27,8 @@ First release. Extracted from a private single-host repository and generalized:
 - `cloudflared` - remotely-managed Cloudflare Tunnel connector.
 - `playbooks/harden.yml` - base hardening, including the root to admin-user handoff.
 - `playbooks/status.yml` - the status report.
+
+### Supported platforms
+
+Ubuntu 24.04 (noble) and Debian 12 (bookworm). Ubuntu 20.04 and older cannot be
+supported: the sshd config needs OpenSSH 8.7+ for `KbdInteractiveAuthentication`.

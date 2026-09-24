@@ -6,7 +6,7 @@
       vps_unattended_mail_enabled is true but no recipient is set. Set
       vps_notify_email (applies to every role) or vps_unattended_mail.
     quiet: true
-  when: vps_unattended_mail_enabled
+  when: vps_unattended_mail_enabled | bool
 
 - name: Install unattended-upgrades
   ansible.builtin.apt:

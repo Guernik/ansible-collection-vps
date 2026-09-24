@@ -55,7 +55,7 @@
   ansible.builtin.user:
     name: "{{ user.key }}"
     password_lock: true
-  when: vps_users_lock_password
+  when: vps_users_lock_password | bool
 
 - name: Grant sudo to {{ user.key }}
   ansible.builtin.template:

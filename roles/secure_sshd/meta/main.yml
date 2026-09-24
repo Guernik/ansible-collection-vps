@@ -8,10 +8,8 @@ galaxy_info:
     - name: Debian
       versions:
         - bookworm
-        - trixie
     - name: Ubuntu
       versions:
-        - jammy
         - noble
   galaxy_tags:
     - vps

@@ -1,6 +1,6 @@
 ---
 - name: Configure the outbound mail relay
-  when: vps_postfix_enabled
+  when: vps_postfix_enabled | bool
   block:
     - name: Assert the relay is configured
       ansible.builtin.assert:
@@ -77,6 +77,6 @@
           {{ vps_postfix_test_email }}
         stdin: "Test message from {{ inventory_hostname }}.\n"
       when:
-        - vps_postfix_send_test_email
+        - vps_postfix_send_test_email | bool
         - vps_postfix_test_email | length > 0
       changed_when: false
