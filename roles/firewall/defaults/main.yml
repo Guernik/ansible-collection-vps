@@ -1,0 +1,55 @@
+---
+vps_firewall_enabled: true
+vps_firewall_default_incoming: deny
+vps_firewall_default_outgoing: allow
+
+# Ports open to the world. Keep this minimal: control-plane APIs belong on
+# loopback behind an SSH tunnel, not in here.
+vps_firewall_allowed_ports: []
+
+# SSH access gate. The port comes from the secure_sshd role so both move together.
+# Set false to remove the rule once another way in exists (bastion, VPN, tunnel) -
+# a rebuild reopens it, since a host with no SSH rule and no other path is
+# unreachable.
+vps_firewall_ssh_enabled: true
+vps_ssh_port: 22
+
+# Ports reachable only from other cluster nodes. Both must be set: with an empty
+# subnet the rules are skipped rather than opened to the world.
+vps_firewall_cluster_subnet: ""
+vps_firewall_cluster_ports: []
+
+# --- Cloudflare-only origin ports (opt-in) -----------------------------------
+# Empty disables this whole feature. When set, the listed ports are allowed ONLY
+# from Cloudflare's published edge ranges, so the origin cannot be reached
+# directly by IP and every request has to pass through Cloudflare.
+vps_firewall_cloudflare_ports: []
+
+# Fetch the current ranges at play time so the allowlist tracks Cloudflare adding
+# prefixes. Falls back to the static list below when disabled or unreachable.
+vps_firewall_fetch_cloudflare_ips: true
+
+# Fallback only. Source of truth: https://www.cloudflare.com/ips/
+vps_firewall_cloudflare_ip_ranges:
+  - 173.245.48.0/20
+  - 103.21.244.0/22
+  - 103.22.200.0/22
+  - 103.31.4.0/22
+  - 141.101.64.0/18
+  - 108.162.192.0/18
+  - 190.93.240.0/20
+  - 188.114.96.0/20
+  - 197.234.240.0/22
+  - 198.41.128.0/17
+  - 162.158.0.0/15
+  - 104.16.0.0/13
+  - 104.24.0.0/14
+  - 172.64.0.0/13
+  - 131.0.72.0/22
+  - 2400:cb00::/32
+  - 2606:4700::/32
+  - 2803:f800::/32
+  - 2405:b500::/32
+  - 2405:8100::/32
+  - 2a06:98c0::/29
+  - 2c0f:f248::/32

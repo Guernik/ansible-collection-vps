@@ -1,0 +1,85 @@
+---
+name: lint
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lint-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pre-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install dev dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Run pre-commit
+        run: pre-commit run --all-files --show-diff-on-failure
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install ansible-core
+        run: pip install ansible-core
+
+      - name: Build the collection
+        run: ansible-galaxy collection build --output-path dist/
+
+      # This collection is public and was extracted from a private repository,
+      # so the build fails if a deployment-specific identifier ever reaches the
+      # packaged artifact. The patterns live in a repository secret rather than
+      # here: committing the list would publish the very strings it guards.
+      # LEAK_PATTERNS is an extended-regex alternation, e.g. 'foo\.com|bar'.
+      # With the secret unset the scan still runs its structural checks.
+      - name: Scan the artifact for leaked identifiers
+        env:
+          LEAK_PATTERNS: ${{ secrets.LEAK_PATTERNS }}
+        run: |-
+          set -euo pipefail
+          mkdir -p dist/extracted
+          tar -xzf dist/*.tar.gz -C dist/extracted
+          # Fail if extraction produced nothing, so the scan cannot pass vacuously.
+          test -f dist/extracted/MANIFEST.json
+
+          # Generic checks, always on: no private keys, no real email addresses
+          # and no public IPs outside the documented Cloudflare fallback list.
+          if grep -rIlE 'BEGIN (RSA|OPENSSH|EC|PGP|DSA) PRIVATE KEY' dist/extracted; then
+            echo "::error::Private key material in the built collection"
+            exit 1
+          fi
+          if grep -rInoE '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}' dist/extracted \
+               | grep -viE 'example\.(com|org|net)|@ci\b|ansible_managed'; then
+            echo "::error::Real-looking email address in the built collection"
+            exit 1
+          fi
+
+          if [ -n "${LEAK_PATTERNS}" ]; then
+            if grep -rInE "${LEAK_PATTERNS}" dist/extracted; then
+              echo "::error::Deployment-specific identifier in the built collection"
+              exit 1
+            fi
+          else
+            echo "::warning::LEAK_PATTERNS secret is unset; ran generic checks only."
+          fi
+          echo "Clean."

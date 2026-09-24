@@ -1,0 +1,43 @@
+---
+- name: Assert the report recipient is set
+  ansible.builtin.assert:
+    that: vps_unattended_mail | length > 0
+    fail_msg: >-
+      vps_unattended_mail_enabled is true but no recipient is set. Set
+      vps_notify_email (applies to every role) or vps_unattended_mail.
+    quiet: true
+  when: vps_unattended_mail_enabled
+
+- name: Install unattended-upgrades
+  ansible.builtin.apt:
+    name:
+      - unattended-upgrades
+      - apt-listchanges
+    state: present
+    update_cache: true
+
+- name: Enable periodic upgrades
+  ansible.builtin.copy:
+    dest: /etc/apt/apt.conf.d/20auto-upgrades
+    content: |
+      APT::Periodic::Update-Package-Lists "{{ vps_unattended_upgrades_enabled | ternary('1', '0') }}";
+      APT::Periodic::Unattended-Upgrade "{{ vps_unattended_upgrades_enabled | ternary('1', '0') }}";
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart unattended-upgrades
+
+- name: Configure unattended-upgrades
+  ansible.builtin.template:
+    src: 51unattended-upgrades-custom.j2
+    dest: /etc/apt/apt.conf.d/51unattended-upgrades-custom
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart unattended-upgrades
+
+- name: Ensure unattended-upgrades is enabled and running
+  ansible.builtin.systemd_service:
+    name: unattended-upgrades
+    enabled: "{{ vps_unattended_upgrades_enabled }}"
+    state: "{{ vps_unattended_upgrades_enabled | ternary('started', 'stopped') }}"

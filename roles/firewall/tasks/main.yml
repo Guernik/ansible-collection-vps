@@ -1,0 +1,55 @@
+---
+- name: Install UFW
+  ansible.builtin.apt:
+    name: ufw
+    state: present
+    update_cache: true
+
+- name: Set the default incoming policy
+  community.general.ufw:
+    direction: incoming
+    policy: "{{ vps_firewall_default_incoming }}"
+
+- name: Set the default outgoing policy
+  community.general.ufw:
+    direction: outgoing
+    policy: "{{ vps_firewall_default_outgoing }}"
+
+- name: Allow public ports
+  community.general.ufw:
+    rule: allow
+    port: "{{ item }}"
+  loop: "{{ vps_firewall_allowed_ports }}"
+
+- name: Allow SSH
+  community.general.ufw:
+    rule: allow
+    port: "{{ vps_ssh_port }}"
+    comment: ssh
+  when: vps_firewall_ssh_enabled
+
+- name: Remove the SSH rule
+  community.general.ufw:
+    rule: allow
+    port: "{{ vps_ssh_port }}"
+    delete: true
+  when: not vps_firewall_ssh_enabled
+
+- name: Allow cluster ports from the private subnet only
+  community.general.ufw:
+    rule: allow
+    port: "{{ item }}"
+    src: "{{ vps_firewall_cluster_subnet }}"
+    comment: cluster
+  loop: "{{ vps_firewall_cluster_ports }}"
+  when: vps_firewall_cluster_subnet | length > 0
+
+- name: Restrict origin ports to Cloudflare
+  ansible.builtin.include_tasks: cloudflare.yml
+  when: vps_firewall_cloudflare_ports | length > 0
+
+- name: Enable UFW
+  community.general.ufw:
+    state: enabled
+    policy: "{{ vps_firewall_default_incoming }}"
+  when: vps_firewall_enabled

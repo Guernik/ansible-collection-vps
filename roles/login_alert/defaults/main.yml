@@ -1,0 +1,19 @@
+---
+
+# --- shared notification identity ---------------------------------------------
+# Declared here so this role stands alone, but named without a role prefix on
+# purpose: setting vps_notify_email once configures every mail-capable role in
+# this collection. Override this role's own address variable to diverge.
+vps_notify_email: ""
+vps_notify_sender: ""
+
+# Email an alert on every successful SSH login, via a PAM session hook. Off by
+# default: it needs a working local MTA (see the postfix role).
+vps_login_alert_enabled: false
+
+vps_login_alert_email: "{{ vps_notify_email }}"
+vps_login_alert_script: /usr/local/bin/login-alert.sh
+
+# Annotate the alert with the country and reverse-DNS name of the source IP.
+# Needs whois and dig, which the role installs when this is on.
+vps_login_alert_lookup_ip: true

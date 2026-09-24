@@ -1,0 +1,40 @@
+---
+namespace: guernik
+name: vps
+version: 1.0.0
+readme: README.md
+authors:
+  - Guernik
+description: >-
+  Reusable roles to set up and harden a Debian/Ubuntu VPS: SSH hardening, users
+  and keys, UFW, auditd, fail2ban, unattended upgrades, mail notifications,
+  Docker and shell setup.
+license:
+  - MIT
+tags:
+  - vps
+  - hardening
+  - security
+  - debian
+  - ubuntu
+  - ssh
+  - firewall
+  - docker
+repository: https://github.com/Guernik/ansible-collection-vps
+issues: https://github.com/Guernik/ansible-collection-vps/issues
+dependencies:
+  community.general: ">=10.0.0"
+  community.docker: ">=4.0.0"
+  ansible.posix: ">=2.0.0"
+# Development-only files, kept out of the published artifact.
+build_ignore:
+  - .github
+  - .venv
+  - .ansible
+  - .pre-commit-config.yaml
+  - .yamllint
+  - .yamlfmt
+  - .ansible-lint
+  - requirements-dev.txt
+  - dist
+  - "*.tar.gz"

@@ -1,0 +1,19 @@
+---
+galaxy_info:
+  author: Guernik
+  description: Email an alert on every successful SSH login
+  license: MIT
+  min_ansible_version: "2.16"
+  platforms:
+    - name: Debian
+      versions:
+        - bookworm
+        - trixie
+    - name: Ubuntu
+      versions:
+        - jammy
+        - noble
+  galaxy_tags:
+    - vps
+    - hardening
+dependencies: []

@@ -1,0 +1,23 @@
+# ansible-lint configuration
+# https://ansible.readthedocs.io/projects/lint/configuring/
+---
+profile: production
+
+exclude_paths:
+  - .venv/
+  - .github/
+  - .ansible/
+
+# Every variable in this collection is prefixed `vps_` rather than per-role
+# (`firewall_`, `logwatch_`, ...). That is deliberate: several variables are
+# shared across roles on purpose - vps_notify_email feeds four of them, and
+# vps_ssh_port is read by both secure_sshd and firewall - so a per-role prefix
+# would mean either duplicating them or naming them after whichever role happens
+# to own them. A single collection-wide prefix keeps the public interface
+# consistent and still avoids collisions with other collections.
+skip_list:
+  - var-naming[no-role-prefix]
+
+# A changelog is added at the first tagged release.
+warn_list:
+  - galaxy[no-changelog]

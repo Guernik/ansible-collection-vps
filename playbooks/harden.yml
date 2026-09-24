@@ -1,0 +1,97 @@
+---
+# Base hardening for a fresh Debian/Ubuntu VPS.
+#
+# Runs in two stages because it changes the account it connects as. The first
+# stage connects as root (the only account a fresh image has) and creates the
+# admin user; everything after that connects as the admin user over sudo.
+#
+# Usage:
+#   - import_playbook: guernik.vps.harden
+#
+# Required: vps_users must contain at least one sudoer, and vps_admin_user must
+# name it. See the collection README for the full variable reference.
+
+- name: Bootstrap as root
+  hosts: "{{ vps_hosts | default('all') }}"
+  become: true
+  gather_facts: true
+  vars:
+    ansible_user: "{{ vps_bootstrap_user | default('root') }}"
+  tags: bootstrap
+
+  pre_tasks:
+    - name: Assert the admin user is defined and is a sudoer
+      ansible.builtin.assert:
+        that:
+          - vps_admin_user | default('') | length > 0
+          - vps_admin_user in vps_users
+          - vps_users[vps_admin_user].sudoer | default(false)
+        fail_msg: >-
+          vps_admin_user must name an entry in vps_users that has `sudoer: true`.
+          The later stages connect as that user over sudo, so without it this
+          playbook would harden the host and then be unable to log back in.
+        quiet: true
+      tags: always
+
+  roles:
+    - role: guernik.vps.hostname
+      tags: hostname
+    - role: guernik.vps.users
+      tags: users
+    - role: guernik.vps.apt_packages
+      tags: apt_packages
+    # Last in this stage: once sshd is hardened, root password login is gone, so
+    # the admin user must already exist with its key installed.
+    - role: guernik.vps.secure_sshd
+      tags: secure_sshd
+
+- name: Switch to the admin user
+  hosts: "{{ vps_hosts | default('all') }}"
+  gather_facts: false
+  tags: always
+  tasks:
+    - name: Drop the root connection
+      ansible.builtin.meta: reset_connection
+
+- name: Harden as the admin user
+  hosts: "{{ vps_hosts | default('all') }}"
+  become: true
+  gather_facts: true
+  vars:
+    ansible_user: "{{ vps_admin_user }}"
+  tags: harden
+
+  roles:
+    - role: guernik.vps.auditd
+      tags: auditd
+    - role: guernik.vps.firewall
+      tags: firewall
+    - role: guernik.vps.postfix
+      tags: postfix
+    - role: guernik.vps.fail2ban
+      tags: fail2ban
+    - role: guernik.vps.logwatch
+      tags: logwatch
+    - role: guernik.vps.unattended_upgrades
+      tags: unattended_upgrades
+    - role: guernik.vps.login_alert
+      tags: login_alert
+    - role: guernik.vps.shell
+      tags: shell
+
+  post_tasks:
+    # A marker later playbooks can require, so a cluster or application is never
+    # stood up on a host that was never hardened. Stamped only after a full run:
+    # a single `--tags <role>` run carries that role's tag, not `harden`, so it
+    # will not falsely mark the host as done.
+    - name: Mark base hardening as complete
+      ansible.builtin.copy:
+        dest: "{{ vps_setup_marker | default('/etc/vps-setup-done') }}"
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          # Written by guernik.vps.harden - base hardening completed.
+          completed_at={{ ansible_date_time.iso8601 }}
+          host={{ inventory_hostname }}
+      tags: harden

@@ -1,0 +1,36 @@
+---
+- name: Select users who asked for fish
+  ansible.builtin.set_fact:
+    vps_fish_users: >-
+      {{ vps_users | dict2items
+         | selectattr('value.shell', 'defined')
+         | selectattr('value.shell', 'equalto', 'fish')
+         | map(attribute='key') | list }}
+
+- name: Set up fish
+  when: vps_fish_users | length > 0
+  block:
+    - name: Install fish
+      ansible.builtin.apt:
+        name: fish
+        state: present
+        update_cache: true
+
+    - name: Ensure the fish functions directory exists
+      ansible.builtin.file:
+        path: "/home/{{ item }}/.config/fish/functions"
+        state: directory
+        owner: "{{ item }}"
+        group: "{{ item }}"
+        mode: "0755"
+      loop: "{{ vps_fish_users }}"
+
+    - name: Install the fish helper functions
+      ansible.builtin.copy:
+        src: functions/
+        dest: "/home/{{ item }}/.config/fish/functions/"
+        owner: "{{ item }}"
+        group: "{{ item }}"
+        mode: "0644"
+      loop: "{{ vps_fish_users }}"
+      when: vps_shell_install_functions

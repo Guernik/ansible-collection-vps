@@ -1,0 +1,29 @@
+# {{ ansible_managed }}
+[DEFAULT]
+banaction               = {{ vps_fail2ban_banaction }}
+banaction_allports      = {{ vps_fail2ban_banaction_allports }}
+{% if vps_fail2ban_mail_enabled %}
+mta                     = {{ vps_fail2ban_mta }}
+action                  = sendmail-whois-matches-country[sender={{ vps_fail2ban_sender }}, dest={{ vps_fail2ban_destemail }}]
+{% else %}
+action                  = %(action_)s
+{% endif %}
+bantime.incremental     = true
+bantime.rndtime         = 30m
+bantime.maxtime         = 60d
+bantime.factor          = 2
+bantime.formula         = ban.Time * math.exp(float(ban.Count+1)*banFactor)/math.exp(1*banFactor)
+
+[sshd]
+enabled                 = {{ vps_fail2ban_sshd_enabled | bool | lower }}
+port                    = {{ vps_ssh_port }}
+logpath                 = %(sshd_log)s
+backend                 = systemd
+findtime                = {{ vps_fail2ban_findtime }}
+bantime                 = {{ vps_fail2ban_bantime }}
+maxretry                = {{ vps_fail2ban_maxretry }}
+
+[recidive]
+enabled                 = {{ vps_fail2ban_recidive_enabled | bool | lower }}
+bantime                 = 9w
+findtime                = 3d

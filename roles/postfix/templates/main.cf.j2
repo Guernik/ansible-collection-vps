@@ -1,0 +1,13 @@
+# {{ ansible_managed }}
+myhostname = {{ vps_postfix_hostname }}
+mydestination = localhost
+relayhost = {{ vps_postfix_relay_host }}
+inet_interfaces = loopback-only
+
+smtp_use_tls = yes
+smtp_tls_security_level = secure
+smtp_tls_CAfile = {{ vps_postfix_ca_cert }}
+
+smtp_sasl_auth_enable = yes
+smtp_sasl_password_maps = hash:/etc/postfix/sasl_passwd
+smtp_sasl_security_options = noanonymous

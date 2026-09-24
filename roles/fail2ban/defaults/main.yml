@@ -1,0 +1,31 @@
+---
+
+# --- shared notification identity ---------------------------------------------
+# Declared here so this role stands alone, but named without a role prefix on
+# purpose: setting vps_notify_email once configures every mail-capable role in
+# this collection. Override this role's own address variable to diverge.
+vps_notify_email: ""
+vps_notify_sender: ""
+
+vps_fail2ban_sshd_enabled: true
+vps_fail2ban_recidive_enabled: true
+
+vps_fail2ban_bantime: 3600
+vps_fail2ban_findtime: 600
+vps_fail2ban_maxretry: 3
+
+# UFW is what the firewall role manages, so bans are applied there.
+vps_fail2ban_banaction: ufw
+vps_fail2ban_banaction_allports: ufw
+
+# SSH port to watch. Matches the secure_sshd role, so a non-default port is
+# picked up without editing the jail.
+vps_ssh_port: 22
+
+# --- ban notifications (opt-in) ----------------------------------------------
+# Off by default: bans still happen, they are just not emailed. Requires a
+# working local MTA (see the postfix role).
+vps_fail2ban_mail_enabled: false
+vps_fail2ban_destemail: "{{ vps_notify_email }}"
+vps_fail2ban_sender: "{{ vps_notify_sender }}"
+vps_fail2ban_mta: sendmail

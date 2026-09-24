@@ -1,0 +1,25 @@
+{{ ansible_managed | comment }}
+# Runs the remotely-managed Cloudflare Tunnel connector. The tunnel token is read
+# from {{ vps_cloudflared_token_file }} (EnvironmentFile) as $TUNNEL_TOKEN. cloudflared
+# picks the token up from that env var, so `tunnel run` needs no --token flag and
+# the token stays OFF the command line (not visible in `ps`/`systemctl status`).
+# Ingress (the SSH route) and the Access policy live in the Cloudflare dashboard.
+[Unit]
+Description=Cloudflare Tunnel (cloudflared)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile={{ vps_cloudflared_token_file }}
+ExecStart=/usr/bin/cloudflared --no-autoupdate tunnel run
+Restart=on-failure
+RestartSec=5s
+# cloudflared only needs outbound network; some light hardening (it has no reason
+# to write outside /tmp or read user homes).
+NoNewPrivileges=yes
+ProtectHome=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

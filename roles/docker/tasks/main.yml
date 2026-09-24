@@ -1,0 +1,68 @@
+---
+- name: Resolve the dpkg architecture
+  ansible.builtin.set_fact:
+    vps_docker_arch: >-
+      {{ vps_docker_arch_map[ansible_facts['architecture']]
+         | default(ansible_facts['architecture']) }}
+
+- name: Install repository prerequisites
+  ansible.builtin.apt:
+    name:
+      - apt-transport-https
+      - ca-certificates
+      - curl
+      - gnupg
+    state: present
+    update_cache: true
+
+- name: Ensure the keyring directory exists
+  ansible.builtin.file:
+    path: "{{ vps_docker_keyring | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install the Docker APT key
+  ansible.builtin.get_url:
+    url: "https://download.docker.com/linux/{{ vps_docker_distribution }}/gpg"
+    dest: "{{ vps_docker_keyring }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Add the Docker APT repository
+  ansible.builtin.apt_repository:
+    repo: >-
+      deb [arch={{ vps_docker_arch }} signed-by={{ vps_docker_keyring }}]
+      https://download.docker.com/linux/{{ vps_docker_distribution }}
+      {{ vps_docker_release }} stable
+    filename: docker
+    state: present
+    update_cache: true
+
+- name: Install Docker Engine
+  ansible.builtin.apt:
+    name: "{{ vps_docker_packages }}"
+    state: present
+
+- name: Configure the Docker daemon
+  ansible.builtin.copy:
+    content: "{{ vps_docker_daemon_options | to_nice_json }}\n"
+    dest: /etc/docker/daemon.json
+    owner: root
+    group: root
+    mode: "0644"
+  when: vps_docker_daemon_options | length > 0
+  notify: Restart Docker
+
+- name: Ensure the docker group exists
+  ansible.builtin.group:
+    name: docker
+    state: present
+
+- name: Ensure Docker is enabled and running
+  ansible.builtin.systemd_service:
+    name: docker
+    enabled: "{{ vps_docker_service_enabled }}"
+    state: "{{ vps_docker_service_state }}"

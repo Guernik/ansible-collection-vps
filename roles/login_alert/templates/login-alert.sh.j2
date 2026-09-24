@@ -1,0 +1,35 @@
+#!/bin/bash
+# {{ ansible_managed }}
+# Invoked by PAM (pam_exec) on session open. Must exit 0 in all cases: a
+# non-zero exit from a pam_exec session hook can deny the login.
+
+[ "$PAM_TYPE" != "open_session" ] && exit 0
+
+user="${PAM_USER:-unknown}"
+rhost="${PAM_RHOST:-$(echo "$SSH_CONNECTION" | awk '{print $1}')}"
+host="$(hostname -f 2>/dev/null || hostname)"
+now="$(date --iso-8601=seconds)"
+
+{% if vps_login_alert_lookup_ip %}
+country="$(whois "$rhost" 2>/dev/null | grep -iE '^country:' | head -n1 | awk '{print toupper($2)}')"
+country="${country:-Unknown}"
+domain="$(dig +short +time=2 +tries=1 -x "$rhost" 2>/dev/null | head -n1)"
+domain="${domain:-Unknown}"
+{% else %}
+country="n/a"
+domain="n/a"
+{% endif %}
+
+/usr/sbin/sendmail -t <<MAIL
+To: {{ vps_login_alert_email }}
+Subject: SSH login on $host: $user from $rhost
+
+User:    $user
+From:    $rhost
+Domain:  $domain
+Country: $country
+Host:    $host
+Time:    $now
+MAIL
+
+exit 0

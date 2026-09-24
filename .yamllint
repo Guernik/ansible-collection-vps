@@ -1,0 +1,29 @@
+# yamllint configuration for the Ansible repo
+# https://yamllint.readthedocs.io/
+---
+extends: default
+
+yaml-files:
+  - "*.yml"
+  - "*.yaml"
+  - ".yamllint"
+
+rules:
+  line-length:
+    max: 160
+    level: warning
+  # Ansible idiomatically uses `yes`/`no`; let ansible-lint own truthy checks.
+  truthy:
+    allowed-values: ["true", "false", "yes", "no"]
+    check-keys: false
+  comments:
+    min-spaces-from-content: 1
+  comments-indentation: disable
+  braces:
+    max-spaces-inside: 1
+  octal-values:
+    forbid-implicit-octal: true
+    forbid-explicit-octal: true
+
+ignore: |-
+  .venv/

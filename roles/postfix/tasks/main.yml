@@ -1,0 +1,82 @@
+---
+- name: Configure the outbound mail relay
+  when: vps_postfix_enabled
+  block:
+    - name: Assert the relay is configured
+      ansible.builtin.assert:
+        that:
+          - vps_postfix_relay_host | length > 0
+          - vps_postfix_sasl_user | length > 0
+          - vps_postfix_sasl_pass | length > 0
+        fail_msg: >-
+          vps_postfix_enabled is true but the relay is not configured. Set
+          vps_postfix_relay_host, vps_postfix_sasl_user and
+          vps_postfix_sasl_pass (the password from your secret store).
+        quiet: true
+
+    - name: Install postfix
+      ansible.builtin.apt:
+        name:
+          - postfix
+          - mailutils
+          - libsasl2-modules
+        state: present
+        update_cache: true
+
+    - name: Verify the CA bundle exists
+      ansible.builtin.stat:
+        path: "{{ vps_postfix_ca_cert }}"
+      register: vps_postfix_ca_stat
+      failed_when: not vps_postfix_ca_stat.stat.exists
+
+    - name: Configure main.cf
+      ansible.builtin.template:
+        src: main.cf.j2
+        dest: /etc/postfix/main.cf
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Restart postfix
+
+    - name: Install the SASL password map
+      ansible.builtin.copy:
+        content: >-
+          {{ vps_postfix_relay_host }}
+          {{ vps_postfix_sasl_user }}:{{ vps_postfix_sasl_pass }}
+        dest: /etc/postfix/sasl_passwd
+        owner: root
+        group: root
+        mode: "0600"
+      no_log: true
+      register: vps_postfix_sasl_map
+      notify: Restart postfix
+
+    # Not a handler: postmap has to rebuild the .db before postfix restarts, and
+    # handlers run after the block. Keyed on the source changing so re-runs are
+    # still idempotent.
+    - name: Rebuild the SASL password map # noqa no-handler
+      ansible.builtin.command:
+        cmd: postmap /etc/postfix/sasl_passwd
+      when: vps_postfix_sasl_map is changed
+      changed_when: true
+      notify: Restart postfix
+
+    - name: Ensure postfix is enabled and running
+      ansible.builtin.systemd_service:
+        name: postfix
+        enabled: true
+        state: started
+
+    - name: Flush handlers so the test mail uses the new config
+      ansible.builtin.meta: flush_handlers
+
+    - name: Send a test message
+      ansible.builtin.command:
+        cmd: >-
+          mail -s "Postfix test from {{ inventory_hostname }}"
+          {{ vps_postfix_test_email }}
+        stdin: "Test message from {{ inventory_hostname }}.\n"
+      when:
+        - vps_postfix_send_test_email
+        - vps_postfix_test_email | length > 0
+      changed_when: false

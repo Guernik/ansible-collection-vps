@@ -1,0 +1,95 @@
+---
+# Fail loudly if the tunnel token wasn't injected - without it cloudflared can't
+# connect, and silently installing a dead service would be worse than stopping.
+- name: Require the cloudflared tunnel token
+  ansible.builtin.assert:
+    that:
+      - vps_cloudflared_tunnel_token | length > 0
+    fail_msg: >-
+      vps_cloudflared_tunnel_token is empty. Create the (remotely-managed)
+      tunnel in the Cloudflare dashboard and pass its token in from your secret
+      store, then re-run.
+
+# Prereqs first, WITHOUT update_cache: a previous failed run may have left a bad
+# cloudflared.list (wrong suite) on the host, which poisons every `apt update`.
+# We must be able to rewrite that list before any cache refresh, so don't refresh
+# here. On a hardened host these are already present anyway.
+- name: Ensure required APT packages are installed
+  ansible.builtin.apt:
+    name:
+      - ca-certificates
+      - curl
+      - gnupg
+    state: present
+
+- name: Create directory for APT keyrings
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: "0755"
+
+# Cloudflare publishes a binary (already-dearmored) gpg key - fetch it straight to
+# the keyring path (mirrors the Docker role's signed-by repo pattern).
+- name: Download Cloudflare APT GPG key
+  ansible.builtin.get_url:
+    url: "{{ vps_cloudflared_apt_key_url }}"
+    dest: "{{ vps_cloudflared_apt_keyring }}"
+    mode: "0644"
+    force: true
+
+# Pin the suite to vps_cloudflared_apt_suite (a Cloudflare-published LTS
+# codename), NOT the host's distribution_release - see the defaults comment.
+# apt_repository rewrites the list and refreshes the cache in one step, so a
+# stale or wrong list left by an earlier run is corrected before the refresh.
+- name: Add the cloudflared APT repository
+  ansible.builtin.apt_repository:
+    repo: >-
+      deb [signed-by={{ vps_cloudflared_apt_keyring }}]
+      https://pkg.cloudflare.com/cloudflared
+      {{ vps_cloudflared_apt_suite }} main
+    filename: "{{ vps_cloudflared_apt_list | basename | regex_replace('\\.list$', '') }}"
+    state: present
+    update_cache: true
+
+- name: Install cloudflared
+  ansible.builtin.apt:
+    name: cloudflared
+    state: present
+
+- name: Ensure cloudflared config directory exists
+  ansible.builtin.file:
+    path: "{{ vps_cloudflared_config_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+# Stage the token in a root-only file the systemd unit sources, so it never lands
+# in the unit file or `ps`. no_log so the token isn't echoed in task output.
+- name: Stage the tunnel token (root-only)
+  ansible.builtin.copy:
+    dest: "{{ vps_cloudflared_token_file }}"
+    content: "TUNNEL_TOKEN={{ vps_cloudflared_tunnel_token }}\n"
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true
+  notify: Restart cloudflared
+
+- name: Install the cloudflared systemd unit
+  ansible.builtin.template:
+    src: cloudflared.service.j2
+    dest: /etc/systemd/system/cloudflared.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - Reload systemd
+    - Restart cloudflared
+
+- name: Enable and start cloudflared
+  ansible.builtin.systemd_service:
+    name: cloudflared
+    enabled: true
+    state: started
+    daemon_reload: true

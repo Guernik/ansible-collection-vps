@@ -1,0 +1,6 @@
+---
+# dpkg architecture names, which differ from the kernel's.
+vps_docker_arch_map:
+  aarch64: arm64
+  x86_64: amd64
+  armv7l: armhf

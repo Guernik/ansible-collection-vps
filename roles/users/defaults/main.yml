@@ -1,0 +1,40 @@
+---
+# Users to create, as a dict of name -> options:
+#   sudoer:          passwordless sudo via /etc/sudoers.d/<name>
+#   docker:          add to the docker group
+#   shell:           login shell; "fish" is set up by the shell role
+#   authorized_keys: explicit public keys. Only consulted when key generation is
+#                    off (or when no generated key exists for the user).
+#
+# vps_users:
+#   admin:
+#     sudoer: true
+#     shell: fish
+#   deploy:
+#     docker: true
+#     authorized_keys:
+#       - "ssh-ed25519 AAAA... deploy@ci"
+vps_users: {}
+
+# Generate an ed25519 keypair per user ON THE CONTROL MACHINE, under
+# vps_ssh_key_dir, and install the public half as that user's authorized_keys.
+# Turn this off to supply keys yourself via each user's authorized_keys (the
+# right choice in CI, where the private key must not be created locally).
+vps_generate_ssh_keys: true
+
+# Where generated keys live on the control machine. Keyed by host so several
+# hosts don't share a keypair.
+vps_ssh_key_dir: "{{ lookup('env', 'HOME') }}/.ssh/{{ inventory_hostname }}"
+
+# Normal runs reuse existing keys, so the role is idempotent. Set true to rotate:
+# the current key directory is moved aside to <dir>.old and fresh keys generated.
+vps_rotate_ssh_keys: false
+
+# Replace any authorized_keys already on the host, so a key removed from
+# vps_users is actually revoked. Set false to append instead.
+vps_authorized_keys_exclusive: true
+
+# Lock the password for managed users (key-only login).
+vps_users_lock_password: true
+
+vps_sudoers_nopasswd: true

@@ -1,0 +1,173 @@
+---
+# --- System ---
+
+- name: Get hostname and uptime
+  ansible.builtin.command: uptime
+  register: system_uptime
+  changed_when: false
+
+- name: Get OS version
+  ansible.builtin.command: cat /etc/os-release
+  register: os_version
+  changed_when: false
+
+- name: Get kernel version
+  ansible.builtin.command: uname -r
+  register: kernel_version
+  changed_when: false
+
+# --- Resources ---
+
+- name: Get memory usage
+  ansible.builtin.command: free -h
+  register: memory_usage
+  changed_when: false
+
+- name: Get disk usage
+  ansible.builtin.command: df -h -x tmpfs -x devtmpfs -x squashfs
+  register: disk_usage
+  changed_when: false
+
+- name: Get inode usage
+  ansible.builtin.command: df -i -x tmpfs -x devtmpfs -x squashfs
+  register: inode_usage
+  changed_when: false
+
+# --- Network ---
+
+- name: Get listening ports
+  ansible.builtin.command: ss -tlnp
+  register: listening_ports
+  changed_when: false
+
+- name: Get network interfaces
+  ansible.builtin.command: ip -br addr
+  register: network_interfaces
+  changed_when: false
+
+- name: Get firewall status
+  ansible.builtin.command: ufw status
+  register: firewall_status
+  changed_when: false
+  ignore_errors: true
+
+# --- Docker ---
+
+# systemctl rather than the service module: this role prints a report, so the
+# command's text output is the wanted artifact, not structured facts.
+- name: Get Docker service status
+  ansible.builtin.command: systemctl is-active docker # noqa command-instead-of-module
+  register: docker_status
+  changed_when: false
+  ignore_errors: true
+
+- name: Get running containers
+  ansible.builtin.command: docker ps --format "table {{ '{{' }}.Names{{ '}}' }}\t{{ '{{' }}.Status{{ '}}' }}\t{{ '{{' }}.Image{{ '}}' }}"
+  register: docker_containers
+  changed_when: false
+  ignore_errors: true
+
+- name: Get Docker disk usage
+  ansible.builtin.command: docker system df
+  register: docker_disk
+  changed_when: false
+  ignore_errors: true
+
+- name: Get Docker networks
+  ansible.builtin.command: docker network ls --format "table {{ '{{' }}.Name{{ '}}' }}\t{{ '{{' }}.Driver{{ '}}' }}\t{{ '{{' }}.Scope{{ '}}' }}"
+  register: docker_networks
+  changed_when: false
+  ignore_errors: true
+
+# --- Services ---
+
+- name: Get failed systemd units
+  ansible.builtin.command: systemctl --failed --no-pager # noqa command-instead-of-module
+  register: failed_units
+  changed_when: false
+  ignore_errors: true
+
+- name: Get key service statuses
+  ansible.builtin.shell: |
+    for svc in docker fail2ban postfix auditd ufw; do
+      printf "%-15s %s\n" "$svc" "$(systemctl is-active $svc 2>/dev/null || echo 'not installed')"
+    done
+  register: service_statuses
+  changed_when: false
+
+# --- Security ---
+
+- name: Get last 5 logins
+  ansible.builtin.command: last -5 -w
+  register: last_logins
+  changed_when: false
+
+- name: Get fail2ban status
+  ansible.builtin.command: fail2ban-client status
+  register: fail2ban_status
+  changed_when: false
+  ignore_errors: true
+
+- name: Get pending updates count
+  ansible.builtin.shell: apt list --upgradable 2>/dev/null | tail -n +2 | wc -l
+  register: pending_updates
+  changed_when: false
+  ignore_errors: true
+
+# --- Report ---
+
+- name: Display server status report
+  ansible.builtin.debug:
+    msg: |-
+      ══════════════════════════════════════════════════════════════
+       SERVER STATUS REPORT — {{ ansible_hostname }}
+      ══════════════════════════════════════════════════════════════
+
+      ── SYSTEM ──────────────────────────────────────────────────
+      Uptime:  {{ system_uptime.stdout }}
+      Kernel:  {{ kernel_version.stdout }}
+
+      ── MEMORY ──────────────────────────────────────────────────
+      {{ memory_usage.stdout }}
+
+      ── DISK USAGE ──────────────────────────────────────────────
+      {{ disk_usage.stdout }}
+
+      ── INODE USAGE ─────────────────────────────────────────────
+      {{ inode_usage.stdout }}
+
+      ── NETWORK INTERFACES ──────────────────────────────────────
+      {{ network_interfaces.stdout }}
+
+      ── LISTENING PORTS ─────────────────────────────────────────
+      {{ listening_ports.stdout }}
+
+      ── FIREWALL ────────────────────────────────────────────────
+      {{ firewall_status.stdout | default('ufw not available') }}
+
+      ── DOCKER ({{ docker_status.stdout | default('unknown') }}) ─────────────────────────────────────
+      Containers:
+      {{ docker_containers.stdout | default('Docker not available') }}
+
+      Disk usage:
+      {{ docker_disk.stdout | default('Docker not available') }}
+
+      Networks:
+      {{ docker_networks.stdout | default('Docker not available') }}
+
+      ── SERVICES ────────────────────────────────────────────────
+      {{ service_statuses.stdout }}
+
+      ── FAILED UNITS ────────────────────────────────────────────
+      {{ failed_units.stdout | default('None') }}
+
+      ── SECURITY ────────────────────────────────────────────────
+      Pending updates: {{ pending_updates.stdout | default('unknown') }}
+
+      Fail2ban:
+      {{ fail2ban_status.stdout | default('fail2ban not available') }}
+
+      Last logins:
+      {{ last_logins.stdout }}
+
+      ══════════════════════════════════════════════════════════════

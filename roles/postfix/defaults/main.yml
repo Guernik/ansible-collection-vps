@@ -1,0 +1,35 @@
+---
+
+# --- shared notification identity ---------------------------------------------
+# Declared here so this role stands alone, but named without a role prefix on
+# purpose: setting vps_notify_email once configures every mail-capable role in
+# this collection. Override this role's own address variable to diverge.
+vps_notify_email: ""
+vps_notify_sender: ""
+
+# Configure postfix as a send-only relay client. When false the role installs
+# nothing and asserts nothing, so a host that has no need for outbound mail can
+# run the base playbook unchanged.
+vps_postfix_enabled: false
+
+# SMTP relay, in postfix's bracket form: "[smtp.example.com]:587".
+vps_postfix_relay_host: ""
+
+# SASL credentials for the relay. The password is a secret: supply it from
+# whatever store you use (env var, ansible-vault, a secrets manager) rather than
+# committing it. This collection deliberately does no lookup of its own.
+vps_postfix_sasl_user: ""
+vps_postfix_sasl_pass: ""
+
+# Hostname postfix announces in EHLO. Many relays reject a bare short name, so
+# this should be an FQDN.
+vps_postfix_hostname: "{{ vps_hostname | default(inventory_hostname) }}"
+
+# Verify the relay's certificate against the system trust store, so verification
+# survives root-CA rotations without staging a specific root.
+vps_postfix_ca_cert: /etc/ssl/certs/ca-certificates.crt
+
+# Send one message after configuring, to prove the relay works. Defaults to the
+# shared notification address.
+vps_postfix_send_test_email: false
+vps_postfix_test_email: "{{ vps_notify_email }}"

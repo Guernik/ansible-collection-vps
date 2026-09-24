@@ -1,0 +1,16 @@
+---
+# Read-only report of a host's running state. Changes nothing.
+#
+#   ansible-playbook guernik.vps.status
+#
+# Reads best with the yaml callback: ANSIBLE_STDOUT_CALLBACK=yaml
+
+- name: Report server status
+  hosts: "{{ vps_hosts | default('all') }}"
+  become: true
+  gather_facts: true
+  vars:
+    ansible_user: "{{ vps_admin_user | default(omit) }}"
+  roles:
+    - role: guernik.vps.server_status
+      tags: server_status

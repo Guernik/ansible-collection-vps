@@ -1,0 +1,52 @@
+---
+- name: Configure SSH login alerts
+  when: vps_login_alert_enabled
+  block:
+    - name: Assert the alert recipient is set
+      ansible.builtin.assert:
+        that: vps_login_alert_email | length > 0
+        fail_msg: >-
+          vps_login_alert_enabled is true but no recipient is set. Set
+          vps_notify_email (applies to every role) or vps_login_alert_email.
+        quiet: true
+
+    - name: Install lookup tools
+      ansible.builtin.apt:
+        name:
+          - whois
+          - dnsutils
+        state: present
+        update_cache: true
+      when: vps_login_alert_lookup_ip
+
+    - name: Install the alert script
+      ansible.builtin.template:
+        src: login-alert.sh.j2
+        dest: "{{ vps_login_alert_script }}"
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Hook the script into PAM
+      ansible.builtin.lineinfile:
+        path: /etc/pam.d/sshd
+        line: "session optional pam_exec.so {{ vps_login_alert_script }}"
+        state: present
+        create: false
+      notify: Restart sshd
+
+- name: Remove the login alert
+  when: not vps_login_alert_enabled
+  block:
+    - name: Unhook the script from PAM
+      ansible.builtin.lineinfile:
+        path: /etc/pam.d/sshd
+        regexp: "^session\\s+optional\\s+pam_exec\\.so\\s+{{ vps_login_alert_script | regex_escape }}"
+        state: absent
+        create: false
+      notify: Restart sshd
+
+    - name: Remove the alert script
+      ansible.builtin.file:
+        path: "{{ vps_login_alert_script }}"
+        state: absent

@@ -1,0 +1,13 @@
+# {{ ansible_managed }}
+Port {{ vps_ssh_port }}
+Protocol 2
+PermitEmptyPasswords {{ vps_sshd_permit_empty_passwords | ternary('yes', 'no') }}
+PubkeyAuthentication {{ vps_sshd_pubkey_authentication | ternary('yes', 'no') }}
+PasswordAuthentication {{ vps_sshd_password_authentication | ternary('yes', 'no') }}
+KbdInteractiveAuthentication {{ vps_sshd_password_authentication | ternary('yes', 'no') }}
+PermitRootLogin {{ vps_sshd_permit_root_login }}
+ClientAliveCountMax {{ vps_sshd_client_alive_count_max }}
+LogLevel {{ vps_sshd_log_level }}
+MaxAuthTries {{ vps_sshd_max_auth_tries }}
+MaxSessions {{ vps_sshd_max_sessions }}
+AllowAgentForwarding {{ vps_sshd_allow_agent_forwarding | ternary('yes', 'no') }}

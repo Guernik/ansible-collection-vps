@@ -1,0 +1,26 @@
+// {{ ansible_managed }}
+Unattended-Upgrade::Allowed-Origins {
+{% for origin in vps_unattended_origins %}
+        "{{ origin }}";
+{% endfor %}
+};
+
+{% if vps_unattended_blacklist | length > 0 %}
+Unattended-Upgrade::Package-Blacklist {
+{% for pkg in vps_unattended_blacklist %}
+        "{{ pkg }}";
+{% endfor %}
+};
+{% endif %}
+
+{% if vps_unattended_mail_enabled %}
+Unattended-Upgrade::Mail "{{ vps_unattended_mail }}";
+Unattended-Upgrade::MailReport "{{ vps_unattended_mail_report }}";
+{% endif %}
+Unattended-Upgrade::Remove-Unused-Kernel-Packages "{{ vps_unattended_remove_unused_kernels | ternary('true', 'false') }}";
+Unattended-Upgrade::Remove-New-Unused-Dependencies "{{ vps_unattended_remove_unused_dependencies | ternary('true', 'false') }}";
+Unattended-Upgrade::Remove-Unused-Dependencies "{{ vps_unattended_remove_unused_dependencies | ternary('true', 'false') }}";
+Unattended-Upgrade::Automatic-Reboot "{{ vps_unattended_automatic_reboot | ternary('true', 'false') }}";
+{% if vps_unattended_automatic_reboot %}
+Unattended-Upgrade::Automatic-Reboot-Time "{{ vps_unattended_reboot_time }}";
+{% endif %}

@@ -1,0 +1,22 @@
+---
+- name: Install auditd
+  ansible.builtin.apt:
+    name: auditd
+    state: present
+    update_cache: true
+
+- name: Install the audit ruleset
+  ansible.builtin.copy:
+    src: "{{ vps_auditd_rules_file }}"
+    dest: /etc/audit/rules.d/audit.rules
+    owner: root
+    group: root
+    mode: "0640"
+    backup: true
+  notify: Restart auditd
+
+- name: Ensure auditd is enabled and running
+  ansible.builtin.systemd_service:
+    name: auditd
+    enabled: true
+    state: started

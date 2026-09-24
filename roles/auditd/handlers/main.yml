@@ -1,0 +1,7 @@
+---
+# auditd ignores a plain systemd restart on some releases; the service file ships
+# its own restart path, so go through the unit rather than `augenrules --load`.
+- name: Restart auditd
+  ansible.builtin.systemd_service:
+    name: auditd
+    state: restarted

@@ -1,0 +1,23 @@
+---
+
+# --- shared notification identity ---------------------------------------------
+# Declared here so this role stands alone, but named without a role prefix on
+# purpose: setting vps_notify_email once configures every mail-capable role in
+# this collection. Override this role's own address variable to diverge.
+vps_notify_email: ""
+vps_notify_sender: ""
+
+# Daily log digest. Off by default because its only output is email: with no
+# relay configured there is nothing for it to do.
+vps_logwatch_enabled: false
+
+vps_logwatch_email_to: "{{ vps_notify_email }}"
+vps_logwatch_email_from: "{{ vps_notify_sender }}"
+vps_logwatch_detail: Low
+vps_logwatch_range: yesterday
+vps_logwatch_service: All
+vps_logwatch_format: text
+vps_logwatch_output: mail
+
+# Send one digest immediately, to prove delivery works.
+vps_logwatch_send_test_report: false

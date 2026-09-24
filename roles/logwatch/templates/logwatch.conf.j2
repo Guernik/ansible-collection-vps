@@ -1,0 +1,10 @@
+# {{ ansible_managed }}
+MailTo = {{ vps_logwatch_email_to }}
+{% if vps_logwatch_email_from | length > 0 %}
+MailFrom = {{ vps_logwatch_email_from }}
+{% endif %}
+Detail = {{ vps_logwatch_detail }}
+Range = {{ vps_logwatch_range }}
+Service = {{ vps_logwatch_service }}
+Format = {{ vps_logwatch_format }}
+Output = {{ vps_logwatch_output }}

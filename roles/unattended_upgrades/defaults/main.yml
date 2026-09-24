@@ -1,0 +1,39 @@
+---
+
+# --- shared notification identity ---------------------------------------------
+# Declared here so this role stands alone, but named without a role prefix on
+# purpose: setting vps_notify_email once configures every mail-capable role in
+# this collection. Override this role's own address variable to diverge.
+vps_notify_email: ""
+vps_notify_sender: ""
+
+vps_unattended_upgrades_enabled: true
+
+# Repositories upgrades are taken from. Security and the distro's own updates by
+# default; add third-party origins (e.g. "Docker:${distro_codename}") as needed.
+# ESM entries are Ubuntu-only and simply have no effect on Debian.
+vps_unattended_origins:
+  - "${distro_id}:${distro_codename}"
+  - "${distro_id}:${distro_codename}-security"
+  - "${distro_id}:${distro_codename}-updates"
+  - "${distro_id}ESMApps:${distro_codename}-apps-security"
+  - "${distro_id}ESM:${distro_codename}-infra-security"
+
+# Packages never upgraded automatically. Useful for anything whose restart you
+# want to schedule yourself (a database, a container runtime).
+vps_unattended_blacklist: []
+
+# Reboot automatically when an upgrade requires it. Leaving this on means an
+# unattended reboot at the time below; turn it off if the host must not restart
+# without you.
+vps_unattended_automatic_reboot: true
+vps_unattended_reboot_time: "08:00"
+
+vps_unattended_remove_unused_kernels: true
+vps_unattended_remove_unused_dependencies: true
+
+# Email a report of what was upgraded. Needs a working local MTA.
+vps_unattended_mail_enabled: false
+vps_unattended_mail: "{{ vps_notify_email }}"
+# "always", "only-on-error" or "on-change".
+vps_unattended_mail_report: only-on-error

@@ -1,0 +1,39 @@
+---
+- name: Fetch Cloudflare's published IP ranges
+  ansible.builtin.uri:
+    url: "https://www.cloudflare.com/ips-{{ item }}"
+    return_content: true
+  loop:
+    - v4
+    - v6
+  register: vps_cloudflare_ips_fetch
+  when: vps_firewall_fetch_cloudflare_ips
+  failed_when: false
+  changed_when: false
+
+# Join the bodies and pull out every CIDR, which drops blank lines and is immune
+# to formatting changes. Note `map('splitlines')` does NOT work here: splitlines
+# is a Python str method, not a Jinja filter, and newer Jinja raises KeyError.
+- name: Parse the fetched ranges
+  ansible.builtin.set_fact:
+    vps_cloudflare_ranges_fetched: >-
+      {{ vps_cloudflare_ips_fetch.results | default([])
+         | selectattr('content', 'defined')
+         | map(attribute='content') | join('\n')
+         | regex_findall('[0-9a-fA-F:.]+/[0-9]+') }}
+
+- name: Choose the fetched ranges, else the static fallback
+  ansible.builtin.set_fact:
+    vps_cloudflare_ranges: >-
+      {{ vps_cloudflare_ranges_fetched or vps_firewall_cloudflare_ip_ranges }}
+
+- name: Allow origin ports from Cloudflare ranges only
+  community.general.ufw:
+    rule: allow
+    port: "{{ item.0 }}"
+    src: "{{ item.1 }}"
+    comment: cloudflare origin
+  loop: >-
+    {{ vps_firewall_cloudflare_ports | product(vps_cloudflare_ranges) | list }}
+  loop_control:
+    label: "{{ item.0 }} <- {{ item.1 }}"

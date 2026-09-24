@@ -1,0 +1,49 @@
+---
+- name: Assert the ban notification address is set
+  ansible.builtin.assert:
+    that: vps_fail2ban_destemail | length > 0
+    fail_msg: >-
+      vps_fail2ban_mail_enabled is true but no address is set. Set
+      vps_notify_email (applies to every role) or vps_fail2ban_destemail.
+    quiet: true
+  when: vps_fail2ban_mail_enabled
+
+- name: Install fail2ban
+  ansible.builtin.apt:
+    name: fail2ban
+    state: present
+    update_cache: true
+
+# whois and dig are what the action uses to annotate a ban with country and PTR.
+- name: Install lookup tools for the notification action
+  ansible.builtin.apt:
+    name:
+      - whois
+      - dnsutils
+    state: present
+  when: vps_fail2ban_mail_enabled
+
+- name: Install the notification action
+  ansible.builtin.copy:
+    src: sendmail-whois-matches-country.conf
+    dest: /etc/fail2ban/action.d/sendmail-whois-matches-country.conf
+    owner: root
+    group: root
+    mode: "0644"
+  when: vps_fail2ban_mail_enabled
+  notify: Restart fail2ban
+
+- name: Deploy jail.local
+  ansible.builtin.template:
+    src: jail.local.j2
+    dest: /etc/fail2ban/jail.local
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart fail2ban
+
+- name: Ensure fail2ban is enabled and running
+  ansible.builtin.systemd_service:
+    name: fail2ban
+    enabled: true
+    state: started

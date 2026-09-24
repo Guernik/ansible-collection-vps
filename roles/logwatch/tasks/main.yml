@@ -1,0 +1,44 @@
+---
+- name: Configure the daily log digest
+  when: vps_logwatch_enabled
+  block:
+    - name: Assert the digest recipient is set
+      ansible.builtin.assert:
+        that: vps_logwatch_email_to | length > 0
+        fail_msg: >-
+          vps_logwatch_enabled is true but no recipient is set. Set
+          vps_notify_email (applies to every role) or vps_logwatch_email_to.
+        quiet: true
+
+    - name: Install logwatch
+      ansible.builtin.apt:
+        name:
+          - logwatch
+          - mailutils
+        state: present
+        update_cache: true
+
+    - name: Install the daily cron job
+      ansible.builtin.copy:
+        src: logwatch.cron
+        dest: /etc/cron.daily/00logwatch
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Configure logwatch
+      ansible.builtin.template:
+        src: logwatch.conf.j2
+        dest: /etc/logwatch/conf/logwatch.conf
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Send a test digest
+      ansible.builtin.command:
+        cmd: >-
+          /usr/sbin/logwatch --range {{ vps_logwatch_range }}
+          --detail {{ vps_logwatch_detail }}
+          --mailto {{ vps_logwatch_email_to }}
+      when: vps_logwatch_send_test_report
+      changed_when: false

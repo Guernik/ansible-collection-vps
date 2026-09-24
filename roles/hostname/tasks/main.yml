@@ -1,0 +1,30 @@
+---
+- name: Set system hostname
+  ansible.builtin.hostname:
+    name: "{{ vps_hostname }}"
+
+- name: Update /etc/hostname
+  ansible.builtin.copy:
+    dest: /etc/hostname
+    content: "{{ vps_hostname }}\n"
+    owner: root
+    group: root
+    mode: "0644"
+
+# Without this, sudo and other tools that resolve the hostname stall on a DNS
+# lookup that will never succeed.
+- name: Map the hostname to loopback in /etc/hosts
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    regexp: '^127\.0\.1\.1\s+'
+    line: "127.0.1.1 {{ vps_hostname }}"
+    state: present
+  when: vps_hostname_update_etc_hosts
+
+- name: Export the machine name in /etc/environment
+  ansible.builtin.blockinfile:
+    path: /etc/environment
+    marker: "# {mark} ANSIBLE MANAGED BLOCK: {{ vps_hostname_env_var }}"
+    block: |-
+      {{ vps_hostname_env_var }}={{ vps_hostname_env_value }}
+  when: vps_hostname_env_var | length > 0

@@ -1,0 +1,13 @@
+---
+# Login shell paths by short name, used to resolve vps_users[*].shell.
+vps_user_shells:
+  bash: /bin/bash
+  fish: /usr/bin/fish
+  sh: /bin/sh
+  zsh: /usr/bin/zsh
+
+# Shells this role will apt-install on demand. /bin/sh and /bin/bash are part of
+# the base system, so they are not listed.
+vps_user_installable_shells:
+  - fish
+  - zsh

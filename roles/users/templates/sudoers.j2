@@ -1,0 +1,2 @@
+# {{ ansible_managed }}
+{{ user.key }} ALL=(ALL) {% if vps_sudoers_nopasswd %}NOPASSWD:{% endif %}ALL

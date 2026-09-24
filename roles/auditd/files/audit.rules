@@ -1,0 +1,92 @@
+#      ___             ___ __      __
+#     /   | __  ______/ (_) /_____/ /
+#    / /| |/ / / / __  / / __/ __  /
+#   / ___ / /_/ / /_/ / / /_/ /_/ /
+#  /_/  |_\__,_/\__,_/_/\__/\__,_/
+#
+# Linux Audit Daemon - Best Practice Configuration
+# /etc/audit/audit.rules
+#
+# Compiled by Florian Roth
+#
+# Created  : 2017/12/05
+# Modified : 2023/01/25
+#
+# Based on rules published here:
+#   Gov.uk auditd rules
+#   	https://github.com/gds-operations/puppet-auditd/pull/1
+# 	CentOS 7 hardening
+# 		https://highon.coffee/blog/security-harden-centos-7/#auditd---audit-daemon
+# 	Linux audit repo
+# 		https://github.com/linux-audit/audit-userspace/tree/master/rules
+# 	Auditd high performance linux auditing
+# 		https://linux-audit.com/tuning-auditd-high-performance-linux-auditing/
+#
+# Further rules
+# 	For PCI DSS compliance see:
+# 		https://github.com/linux-audit/audit-userspace/blob/master/rules/30-pci-dss-v31.rules
+# 	For NISPOM compliance see:
+# 		https://github.com/linux-audit/audit-userspace/blob/master/rules/30-nispom.rules
+
+# Remove any existing rules
+-D
+
+# Buffer Size
+## Feel free to increase this if the machine panic's
+-b 8192
+
+# Failure Mode
+## Possible values: 0 (silent), 1 (printk, print a failure message), 2 (panic, halt the system)
+-f 1
+
+# Ignore errors
+## e.g. caused by users or files not found in the local environment
+-i
+
+
+# Filters ---------------------------------------------------------------------
+
+### We put these early because audit is a first match wins system.
+
+## Ignore current working directory records
+-a always,exclude -F msgtype=CWD
+
+## Cron jobs fill the logs with stuff we normally don't want (works with SELinux)
+-a never,user -F subj_type=crond_t
+-a never,exit -F subj_type=crond_t
+
+## This prevents chrony from overwhelming the logs
+-a never,exit -F arch=b64 -S adjtimex -F auid=-1 -F uid=chrony -F subj_type=chronyd_t
+
+## This is not very interesting and wastes a lot of space if the server is public facing
+-a always,exclude -F msgtype=CRYPTO_KEY_USER
+
+## Open VM Tools
+-a exit,never -F arch=b64 -S all -F exe=/usr/bin/vmtoolsd
+
+## High Volume Event Filter (especially on Linux Workstations)
+-a never,exit -F arch=b32 -F dir=/dev/shm/ -F key=sharedmemaccess
+-a never,exit -F arch=b64 -F dir=/dev/shm/ -F key=sharedmemaccess
+
+-a never,exit -F arch=b32 -F dir=/var/lock/lvm/ -F key=locklvm
+-a never,exit -F arch=b64 -F dir=/var/lock/lvm/ -F key=locklvm
+
+
+
+## Docker
+-w /usr/bin/dockerd -k docker
+-w /usr/bin/docker -k docker
+-w /usr/bin/docker-containerd -k docker
+-w /usr/bin/docker-runc -k docker
+-w /var/lib/docker -p wa -k docker
+-w /etc/docker -k docker
+-w /etc/sysconfig/docker -k docker
+-w /etc/sysconfig/docker-storage -k docker
+-w /usr/lib/systemd/system/docker.service -k docker
+-w /usr/lib/systemd/system/docker.socket -k docker
+
+## SSH configuration
+-w /etc/ssh/sshd_config -k sshd
+-w /etc/ssh/sshd_config.d -k sshd
+
+-a always,exit -F arch=b64 -S execve -F auid>=0 -F auid!=4294967295 -F key=exec_log_interactive

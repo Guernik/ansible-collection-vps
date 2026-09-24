@@ -1,0 +1,7 @@
+---
+# Users whose shell is set up, as the same dict the users role takes. Entries
+# whose `shell` is not "fish" are skipped.
+vps_users: {}
+
+# Install the fish helper functions shipped with this role.
+vps_shell_install_functions: true

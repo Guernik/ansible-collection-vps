@@ -1,0 +1,20 @@
+---
+# Port sshd listens on. The firewall role reads the same variable, so setting it
+# here moves both the daemon and the allow rule together.
+vps_ssh_port: 22
+
+# Hardening knobs. The defaults are the strict values: keys only, no password
+# auth, no root password login, no agent forwarding.
+vps_sshd_permit_root_login: prohibit-password
+vps_sshd_password_authentication: false
+vps_sshd_pubkey_authentication: true
+vps_sshd_permit_empty_passwords: false
+vps_sshd_max_auth_tries: 3
+vps_sshd_max_sessions: 2
+vps_sshd_client_alive_count_max: 2
+vps_sshd_allow_agent_forwarding: false
+vps_sshd_log_level: VERBOSE
+
+# Written as a drop-in rather than replacing /etc/ssh/sshd_config, so the
+# distribution's own config keeps receiving vendor updates.
+vps_sshd_config_path: /etc/ssh/sshd_config.d/sshd_config.conf

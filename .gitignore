@@ -1,0 +1,13 @@
+.DS_Store
+
+# Python virtualenv
+.venv/
+
+# Ansible
+*.retry
+.ansible/
+*.tar.gz
+
+# Local vault password files (never commit these)
+.vault_pass
+.vault_pass.txt

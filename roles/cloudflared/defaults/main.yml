@@ -1,0 +1,27 @@
+---
+# Runs a Cloudflare Tunnel connector, so services (including SSH) can be reached
+# without opening a public port. The tunnel is REMOTELY MANAGED: the connector
+# runs with a single token and the ingress routes plus any Access policy live in
+# the Cloudflare dashboard, so there is no local config.yml or credentials file.
+#
+# Worth knowing before adopting this for SSH: the bootstrap ordering is awkward
+# (port 22 has to stay open until the tunnel is up), and an Access service-token
+# misconfiguration fails by falling back to a browser flow, which looks like a
+# hang in CI rather than an error.
+
+# The token authenticates this connector to one specific tunnel. It is a secret:
+# supply it from your secret store. Empty means the role refuses to run.
+vps_cloudflared_tunnel_token: ""
+
+vps_cloudflared_config_dir: /etc/cloudflared
+vps_cloudflared_token_file: "{{ vps_cloudflared_config_dir }}/token"
+
+vps_cloudflared_apt_key_url: https://pkg.cloudflare.com/cloudflare-main.gpg
+vps_cloudflared_apt_keyring: /etc/apt/keyrings/cloudflare-main.gpg
+vps_cloudflared_apt_list: /etc/apt/sources.list.d/cloudflared.list
+
+# APT suite to install from. Do NOT derive this from the host's release:
+# Cloudflare only publishes for known LTS/stable codenames, so a newer host
+# release has no dists/<release>/ and apt fails with "does not have a Release
+# file". cloudflared is a static Go binary, so a recent LTS suite runs anywhere.
+vps_cloudflared_apt_suite: noble

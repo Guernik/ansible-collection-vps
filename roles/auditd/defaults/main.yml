@@ -1,0 +1,4 @@
+---
+# Path to the ruleset to install. Points at the ruleset shipped with this role;
+# override with a path to your own file to replace it wholesale.
+vps_auditd_rules_file: audit.rules

@@ -1,0 +1,87 @@
+---
+# Read the generated public key when there is one, else fall back to whatever the
+# caller listed in authorized_keys.
+- name: Resolve authorized keys for {{ user.key }}
+  ansible.builtin.set_fact:
+    vps_user_keys: >-
+      {{
+        [lookup('file', vps_ssh_key_dir ~ '/id_' ~ user.key ~ '.pub')]
+        if (vps_generate_ssh_keys and
+            (vps_ssh_key_dir ~ '/id_' ~ user.key ~ '.pub') is exists)
+        else (user.value.authorized_keys | default([]))
+      }}
+
+- name: Assert an SSH key exists for {{ user.key }}
+  ansible.builtin.assert:
+    that: vps_user_keys | length > 0
+    fail_msg: >-
+      No SSH key for user '{{ user.key }}': enable vps_generate_ssh_keys or set
+      authorized_keys for this user. Creating a key-only account with no keys
+      would lock it out.
+
+# The shell binary must exist before it is assigned, or the account is created
+# with a login shell that does not resolve.
+- name: Ensure the requested shell is installed for {{ user.key }}
+  ansible.builtin.apt:
+    name: "{{ user.value.shell }}"
+    state: present
+    update_cache: true
+  when:
+    - user.value.shell is defined
+    - user.value.shell in vps_user_installable_shells
+
+- name: Ensure a group exists for {{ user.key }}
+  ansible.builtin.group:
+    name: "{{ user.key }}"
+    state: present
+
+- name: Ensure the account exists for {{ user.key }}
+  ansible.builtin.user:
+    name: "{{ user.key }}"
+    group: "{{ user.key }}"
+    shell: "{{ vps_user_shells[user.value.shell | default('bash')] | default('/bin/bash') }}"
+    home: "/home/{{ user.key }}"
+    create_home: true
+    state: present
+
+- name: Install authorized_keys for {{ user.key }}
+  ansible.posix.authorized_key:
+    user: "{{ user.key }}"
+    key: "{{ vps_user_keys | join('\n') }}"
+    state: present
+    exclusive: "{{ vps_authorized_keys_exclusive }}"
+
+- name: Lock the password for {{ user.key }}
+  ansible.builtin.user:
+    name: "{{ user.key }}"
+    password_lock: true
+  when: vps_users_lock_password
+
+- name: Grant sudo to {{ user.key }}
+  ansible.builtin.template:
+    src: sudoers.j2
+    dest: "/etc/sudoers.d/{{ user.key }}"
+    owner: root
+    group: root
+    mode: "0440"
+    validate: /usr/sbin/visudo -csf %s
+  when: user.value.sudoer | default(false)
+
+- name: Revoke sudo from {{ user.key }}
+  ansible.builtin.file:
+    path: "/etc/sudoers.d/{{ user.key }}"
+    state: absent
+  when: not (user.value.sudoer | default(false))
+
+- name: Ensure the docker group exists
+  ansible.builtin.group:
+    name: docker
+    state: present
+  when: user.value.docker | default(false)
+
+- name: Add the docker group to {{ user.key }}
+  ansible.builtin.user:
+    name: "{{ user.key }}"
+    groups: docker
+    append: true
+  when: user.value.docker | default(false)

@@ -1,0 +1,31 @@
+---
+# General-purpose CLI tooling. Override to replace the list outright; use
+# vps_apt_extra_packages to add to it.
+vps_apt_packages:
+  - atop
+  - bat
+  - ca-certificates
+  - curl
+  - dstat
+  - fd-find
+  - git
+  - htop
+  - iftop
+  - iotop
+  - jq
+  - lsof
+  - ncdu
+  - net-tools
+  - rsync
+  - silversearcher-ag
+  - sudo
+  - tree
+  - ufw
+  - unzip
+  - vim
+  - wget
+
+vps_apt_extra_packages: []
+
+vps_apt_autoclean: true
+vps_apt_cache_valid_time: 3600

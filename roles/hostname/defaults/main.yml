@@ -1,0 +1,9 @@
+---
+# Defaults to the inventory name so the role is usable without configuration.
+vps_hostname: "{{ inventory_hostname }}"
+vps_hostname_update_etc_hosts: true
+
+# Exported to /etc/environment so scripts and jobs on the host can identify it
+# (log lines, alert subjects). Empty disables the block entirely.
+vps_hostname_env_var: VPS_MACHINE_NAME
+vps_hostname_env_value: "{{ vps_hostname }}"
