@@ -1,0 +1,43 @@
+---
+# Fails on the first task with a clear reason, rather than part-way through with
+# a confusing sshd or apt error on an unsupported host.
+
+- name: Assert the target is a Debian-family host
+  ansible.builtin.assert:
+    that: ansible_facts['os_family'] == 'Debian'
+    fail_msg: >-
+      This collection supports Debian and Ubuntu only, but
+      {{ inventory_hostname }} reports os_family
+      '{{ ansible_facts['os_family'] | default('unknown') }}'. Every role uses
+      apt and Debian paths, so there is no partial-support path here.
+    quiet: true
+
+- name: Warn about an untested release
+  ansible.builtin.debug:
+    msg: >-
+      {{ inventory_hostname }} runs
+      {{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_release'] }},
+      which this collection is not tested against (tested:
+      {{ vps_supported_releases[ansible_facts['distribution']] | default([]) | join(', ') }}).
+      Proceeding because vps_preflight_strict is false.
+  when:
+    - not (vps_preflight_strict | bool)
+    - ansible_facts['distribution_release'] not in (vps_supported_releases[ansible_facts['distribution']] | default([]))
+
+- name: Assert the release is one this collection is tested against
+  ansible.builtin.assert:
+    that:
+      - ansible_facts['distribution'] in vps_supported_releases
+      - ansible_facts['distribution_release'] in vps_supported_releases[ansible_facts['distribution']]
+    fail_msg: >-
+      {{ inventory_hostname }} runs
+      {{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_release'] }},
+      which this collection is not tested against. Tested releases:
+      {% for distro, releases in vps_supported_releases.items() %}
+      {{ distro }} ({{ releases | join(', ') }}){% if not loop.last %};{% endif %}
+      {% endfor %}.
+      Ubuntu 20.04 and older are unsupported: the sshd config uses
+      KbdInteractiveAuthentication, which needs OpenSSH 8.7+.
+      Set vps_preflight_strict=false to try anyway.
+    quiet: true
+  when: vps_preflight_strict | bool

@@ -9,13 +9,13 @@
       ansible.builtin.file:
         path: "{{ vps_ssh_key_dir }}.old"
         state: absent
-      when: vps_rotate_ssh_keys
+      when: vps_rotate_ssh_keys | bool
 
     - name: Move the current keys aside
       ansible.builtin.command:
         cmd: mv {{ vps_ssh_key_dir | quote }} {{ (vps_ssh_key_dir ~ '.old') | quote }}
         removes: "{{ vps_ssh_key_dir }}"
-      when: vps_rotate_ssh_keys
+      when: vps_rotate_ssh_keys | bool
       changed_when: true
 
     - name: Ensure the key directory exists

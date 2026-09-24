@@ -7,7 +7,7 @@
     - v4
     - v6
   register: vps_cloudflare_ips_fetch
-  when: vps_firewall_fetch_cloudflare_ips
+  when: vps_firewall_fetch_cloudflare_ips | bool
   failed_when: false
   changed_when: false
 

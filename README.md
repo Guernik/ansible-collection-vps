@@ -1,6 +1,6 @@
 # guernik.vps
 
-Ansible roles to set up and harden a Debian/Ubuntu VPS: SSH, users and keys,
+Ansible roles to set up and harden an Ubuntu or Debian VPS: SSH, users and keys,
 firewall, auditd, fail2ban, unattended upgrades, optional mail notifications,
 Docker and shell setup.
 
@@ -55,10 +55,10 @@ unattended security upgrades, and no mail configured. Nothing else is assumed.
 `guernik.vps.harden` runs in two stages, because it changes the account it
 connects as:
 
-1. **As root** (the only account a fresh image has): create the admin user and
-   install its key, install packages, set the hostname, then harden sshd. sshd is
-   hardened *last* in this stage, so the admin user is already able to log in
-   before root password login disappears.
+1. **As root** (the only account a fresh image has): check the OS is supported,
+   create the admin user and install its key, install packages, set the
+   hostname, then harden sshd. sshd is hardened *last* in this stage, so the
+   admin user is already able to log in before root password login disappears.
 2. **As the admin user**, over sudo: everything else.
 
 Between them the connection is reset, so the second stage genuinely reconnects as
@@ -83,6 +83,7 @@ marker so an application is never deployed onto a host that was never hardened:
 
 | Role | Purpose | Default state |
 | --- | --- | --- |
+| `preflight` | refuse to run on an untested OS | on |
 | `secure_sshd` | sshd hardening drop-in, validated with `sshd -t` before install | on |
 | `hostname` | hostname, `/etc/hosts` mapping, machine name in `/etc/environment` | on |
 | `users` | users, groups, SSH keys, sudo, docker group | on |
@@ -243,6 +244,7 @@ reasoning for the default. Everything is prefixed `vps_`. The ones worth knowing
 | `vps_notify_sender` | `""` | Envelope sender for alerts. |
 | `vps_generate_ssh_keys` | `true` | Off in CI; supply `authorized_keys` instead. |
 | `vps_rotate_ssh_keys` | `false` | Set true to rotate deliberately. |
+| `vps_preflight_strict` | `true` | Set false to run on an untested release. |
 | `vps_apt_packages` | see defaults | Replace wholesale, or add via `vps_apt_extra_packages`. |
 | `vps_firewall_allowed_ports` | `[]` | |
 | `vps_unattended_automatic_reboot` | `true` | Reboots at `vps_unattended_reboot_time` when an upgrade needs it. |
@@ -256,10 +258,32 @@ ANSIBLE_STDOUT_CALLBACK=yaml ansible-playbook guernik.vps.status
 Read-only: uptime, OS and kernel, memory, disk and inode usage, listening ports,
 addresses, firewall state, failed units and service status.
 
+## Supported platforms
+
+Targets **Ubuntu 24.04 (noble)** and **Debian 12 (bookworm)**. Those are the
+only releases listed, and the only ones support is claimed for.
+
+Nothing in these roles branches on the distribution release, so Ubuntu 22.04 and
+Debian 13 will very likely work - they are simply unverified. The `preflight`
+role stops the run on anything unlisted, naming the release it found:
+
+```sh
+# opt into an untested release
+ansible-playbook site.yml -e vps_preflight_strict=false
+```
+
+**Ubuntu 20.04 and older will not work.** The sshd config uses
+`KbdInteractiveAuthentication`, which OpenSSH only understands from 8.7; 20.04
+ships 8.2, which still calls it `ChallengeResponseAuthentication` and rejects
+the drop-in. Overriding `vps_preflight_strict` does not change that.
+
+Non-Debian families (RHEL, Alpine, Arch) are rejected unconditionally: every
+role uses apt and Debian paths, so there is no partial-support path.
+
 ## Requirements
 
 - ansible-core 2.16 or newer
-- A Debian or Ubuntu target (Debian bookworm/trixie, Ubuntu jammy/noble)
+- Ubuntu 24.04 or Debian 12 (see above)
 - Root SSH access for the first run
 
 Collection dependencies (`community.general`, `community.docker`,

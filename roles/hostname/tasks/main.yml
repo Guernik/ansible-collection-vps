@@ -19,7 +19,7 @@
     regexp: '^127\.0\.1\.1\s+'
     line: "127.0.1.1 {{ vps_hostname }}"
     state: present
-  when: vps_hostname_update_etc_hosts
+  when: vps_hostname_update_etc_hosts | bool
 
 - name: Export the machine name in /etc/environment
   ansible.builtin.blockinfile:

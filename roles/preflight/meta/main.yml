@@ -1,7 +1,7 @@
 ---
 galaxy_info:
   author: Guernik
-  description: Email an alert on every successful SSH login
+  description: Verify the target OS is one this collection supports
   license: MIT
   min_ansible_version: "2.16"
   platforms:

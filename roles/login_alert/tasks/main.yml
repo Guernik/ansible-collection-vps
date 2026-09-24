@@ -1,6 +1,6 @@
 ---
 - name: Configure SSH login alerts
-  when: vps_login_alert_enabled
+  when: vps_login_alert_enabled | bool
   block:
     - name: Assert the alert recipient is set
       ansible.builtin.assert:
@@ -17,7 +17,7 @@
           - dnsutils
         state: present
         update_cache: true
-      when: vps_login_alert_lookup_ip
+      when: vps_login_alert_lookup_ip | bool
 
     - name: Install the alert script
       ansible.builtin.template:

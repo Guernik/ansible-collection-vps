@@ -33,4 +33,4 @@
         group: "{{ item }}"
         mode: "0644"
       loop: "{{ vps_fish_users }}"
-      when: vps_shell_install_functions
+      when: vps_shell_install_functions | bool
