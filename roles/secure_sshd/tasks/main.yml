@@ -1,4 +1,37 @@
 ---
+# A minimal image may not ship the server at all (only the client), in which case
+# neither sshd nor the drop-in directory exists and the template below fails.
+- name: Ensure the SSH server is installed
+  ansible.builtin.apt:
+    name: openssh-server
+    state: present
+    update_cache: true
+  when: vps_sshd_install_server | bool
+
+# The drop-in directory is created by the openssh-server package, but a host that
+# was upgraded from an older release, or whose config was hand-trimmed, can lack
+# it while still running sshd.
+- name: Ensure the drop-in directory exists
+  ansible.builtin.file:
+    path: "{{ vps_sshd_config_path | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+# `sshd -t` refuses to run without its privilege-separation directory, which the
+# systemd unit normally creates at start. On a host where sshd has not started
+# yet (a fresh install, or a container) validation would fail for that reason
+# alone, so make sure it exists first. It lives on tmpfs, so this is not
+# persistent config - just enough for the check below.
+- name: Ensure the privilege separation directory exists
+  ansible.builtin.file:
+    path: /run/sshd
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
 # Validate before installing: a malformed drop-in makes sshd refuse to start,
 # and on a remote host that means losing the only way back in.
 - name: Deploy SSH hardening drop-in

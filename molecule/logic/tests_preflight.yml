@@ -1,0 +1,22 @@
+---
+# The OS gate must accept supported releases, reject untested ones, reject
+# non-Debian families unconditionally, and honour the strict escape hatch.
+
+- name: Check the OS gate against a matrix of simulated hosts
+  vars:
+    cases:
+      - {family: Debian, distro: Ubuntu, release: noble, strict: true, expect: pass}
+      - {family: Debian, distro: Debian, release: bookworm, strict: true, expect: pass}
+      - {family: Debian, distro: Ubuntu, release: jammy, strict: true, expect: fail}
+      - {family: Debian, distro: Debian, release: trixie, strict: true, expect: fail}
+      - {family: Debian, distro: Ubuntu, release: focal, strict: true, expect: fail}
+      - {family: RedHat, distro: Rocky, release: "9", strict: true, expect: fail}
+      - {family: Debian, distro: Ubuntu, release: jammy, strict: false, expect: pass}
+      - {family: Debian, distro: Ubuntu, release: focal, strict: false, expect: pass}
+      # The family assert has no escape hatch: apt is not optional here.
+      - {family: RedHat, distro: Rocky, release: "9", strict: false, expect: fail}
+  ansible.builtin.include_tasks: _preflight_case.yml
+  loop: "{{ cases }}"
+  loop_control:
+    loop_var: case
+    label: "{{ case.distro }} {{ case.release }} strict={{ case.strict }} -> {{ case.expect }}"

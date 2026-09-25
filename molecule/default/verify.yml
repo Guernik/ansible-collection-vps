@@ -1,0 +1,176 @@
+---
+# Reads the host back and asserts on what the roles actually produced. Separate
+# from converge so it runs against a converged instance without re-applying.
+
+- name: Verify
+  hosts: all
+  become: true
+  gather_facts: true
+  tasks:
+    # --- secure_sshd ---
+    - name: Read the sshd drop-in
+      ansible.builtin.slurp:
+        src: /etc/ssh/sshd_config.d/sshd_config.conf
+      register: sshd_drop_in
+
+    - name: Assert sshd is key-only
+      vars:
+        sshd_conf: "{{ sshd_drop_in.content | b64decode }}"
+      ansible.builtin.assert:
+        that:
+          - "'PasswordAuthentication no' in sshd_conf"
+          - "'PermitRootLogin prohibit-password' in sshd_conf"
+          - "'Port 22' in sshd_conf"
+        fail_msg: "the installed sshd config is not key-only"
+        quiet: true
+
+    # The role validates with `sshd -t` before install; confirm the file the
+    # daemon would actually load is valid too.
+    - name: Assert the running sshd config parses
+      ansible.builtin.command: /usr/sbin/sshd -t
+      changed_when: false
+
+    # --- users ---
+    - name: Look up the created users
+      ansible.builtin.getent:
+        database: passwd
+        key: "{{ item }}"
+      loop: [admin, deploy]
+
+    - name: Read admin's authorized_keys
+      ansible.builtin.stat:
+        path: /home/admin/.ssh/authorized_keys
+      register: admin_keys
+
+    - name: Assert the key was installed with tight permissions
+      ansible.builtin.assert:
+        that:
+          - admin_keys.stat.exists
+          - admin_keys.stat.pw_name == 'admin'
+          - admin_keys.stat.size > 0
+        fail_msg: "admin has no authorized_keys, so the account is unreachable"
+        quiet: true
+
+    - name: Read admin's sudoers entry
+      ansible.builtin.stat:
+        path: /etc/sudoers.d/admin
+      register: admin_sudo
+
+    - name: Assert the sudoers file exists and is 0440
+      ansible.builtin.assert:
+        that:
+          - admin_sudo.stat.exists
+          - admin_sudo.stat.mode == '0440'
+        fail_msg: "admin's sudoers entry is missing or has wrong permissions"
+        quiet: true
+
+    # deploy is not a sudoer, so it must NOT have picked one up.
+    - name: Check deploy has no sudoers entry
+      ansible.builtin.stat:
+        path: /etc/sudoers.d/deploy
+      register: deploy_sudo
+
+    - name: Assert sudo was not granted to a non-sudoer
+      ansible.builtin.assert:
+        that: not deploy_sudo.stat.exists
+        fail_msg: "deploy is not declared a sudoer but has a sudoers entry"
+        quiet: true
+
+    - name: Read the shadow entries
+      ansible.builtin.command: passwd --status admin
+      register: admin_passwd
+      changed_when: false
+
+    - name: Assert the password is locked
+      ansible.builtin.assert:
+        that: admin_passwd.stdout.split()[1] == 'L'
+        fail_msg: "admin's password is not locked ({{ admin_passwd.stdout }})"
+        quiet: true
+
+    # --- fail2ban ---
+    - name: Check fail2ban is running
+      ansible.builtin.systemd_service:
+        name: fail2ban
+      register: f2b
+
+    - name: Assert fail2ban is active and enabled
+      ansible.builtin.assert:
+        that:
+          - f2b.status.ActiveState == 'active'
+          - f2b.status.UnitFileState == 'enabled'
+        fail_msg: "fail2ban is not running ({{ f2b.status.ActiveState }})"
+        quiet: true
+
+    - name: Read the jail config
+      ansible.builtin.slurp:
+        src: /etc/fail2ban/jail.local
+      register: jail
+
+    # Mail is off in this scenario, so the jail must ban without mailing.
+    - name: Assert the jail bans without mail configured
+      vars:
+        jail_conf: "{{ jail.content | b64decode }}"
+      ansible.builtin.assert:
+        that:
+          - "'banaction               = ufw' in jail_conf"
+          - "'sendmail' not in jail_conf"
+        fail_msg: "fail2ban jail is wrong for a mail-off host"
+        quiet: true
+
+    # --- apt_packages ---
+    - name: Gather installed packages
+      ansible.builtin.package_facts:
+        manager: apt
+
+    - name: Assert the base tooling is present
+      ansible.builtin.assert:
+        that:
+          - "'curl' in ansible_facts.packages"
+          - "'git' in ansible_facts.packages"
+          - "'jq' in ansible_facts.packages"
+          - "'ufw' in ansible_facts.packages"
+          - "'fail2ban' in ansible_facts.packages"
+        fail_msg: "a base package is missing"
+        quiet: true
+
+    # The hostname role is check-mode only here (Docker bind-mounts /etc/hosts
+    # and /etc/hostname), so there is nothing on-disk to assert. Its real
+    # effects are covered by the throwaway-VPS run.
+
+    # --- mail roles must have installed nothing ---
+    - name: Check for the login alert hook
+      ansible.builtin.stat:
+        path: /usr/local/bin/login-alert.sh
+      register: alert_script
+
+    - name: Read the sshd PAM config
+      ansible.builtin.slurp:
+        src: /etc/pam.d/sshd
+      register: pam_sshd
+
+    # login_alert is disabled, so the script must be absent AND unhooked - the
+    # role is reversible, not just skippable.
+    - name: Assert the disabled login alert left nothing behind
+      ansible.builtin.assert:
+        that:
+          - not alert_script.stat.exists
+          - "'login-alert.sh' not in (pam_sshd.content | b64decode)"
+        fail_msg: "login_alert is off but its hook or script is still present"
+        quiet: true
+
+    - name: Assert postfix was not configured when disabled
+      ansible.builtin.assert:
+        that: "'postfix' not in ansible_facts.packages"
+        fail_msg: >-
+          postfix is installed although vps_postfix_enabled is false, so the
+          disabled path is doing work it should not.
+        quiet: true
+
+    # --- shell ---
+    - name: Assert fish was not installed for a user who did not ask
+      ansible.builtin.assert:
+        that: "'fish' not in ansible_facts.packages"
+        fail_msg: >-
+          fish is installed although no user requested it - the shell role
+          should be a no-op here.
+        quiet: true

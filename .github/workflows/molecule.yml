@@ -1,0 +1,84 @@
+---
+name: molecule
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: molecule-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Host-free checks: the OS gate, template rendering, variable wiring and the
+  # roles' own guards. Seconds to run, so it gates the slower container jobs.
+  logic:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install test dependencies
+        run: pip install -r requirements-test.txt
+
+      - name: Install collection dependencies
+        run: ansible-galaxy collection install -r collections/requirements.yml
+
+      - name: Run the logic scenario
+        run: molecule converge -s logic
+
+  # Applies the roles a container can host, checks idempotence, then asserts on
+  # the resulting host state. Both supported platforms.
+  container:
+    runs-on: ubuntu-latest
+    needs: logic
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario: [default, bookworm]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install test dependencies
+        run: pip install -r requirements-test.txt
+
+      - name: Install collection dependencies
+        run: ansible-galaxy collection install -r collections/requirements.yml
+
+      - name: Run ${{ matrix.scenario }}
+        run: molecule test -s ${{ matrix.scenario }}
+
+  # Check-mode run of the roles a container cannot apply for real, including the
+  # firewall's live Cloudflare fetch and CIDR parse.
+  dryrun:
+    runs-on: ubuntu-latest
+    needs: logic
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install test dependencies
+        run: pip install -r requirements-test.txt
+
+      - name: Install collection dependencies
+        run: ansible-galaxy collection install -r collections/requirements.yml
+
+      - name: Run the dryrun scenario
+        run: molecule test -s dryrun

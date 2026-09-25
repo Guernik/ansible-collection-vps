@@ -280,6 +280,52 @@ the drop-in. Overriding `vps_preflight_strict` does not change that.
 Non-Debian families (RHEL, Alpine, Arch) are rejected unconditionally: every
 role uses apt and Debian paths, so there is no partial-support path.
 
+## Testing
+
+Ansible roles have no unit-test or coverage concept - there is no Python to
+instrument. Tests here are [Molecule](https://ansible.readthedocs.io/projects/molecule/)
+scenarios, plus a host-free scenario for pure logic.
+
+```sh
+pip install -r requirements-test.txt
+ansible-galaxy collection install -r collections/requirements.yml
+
+molecule converge -s logic     # seconds, no Docker needed
+molecule test -s default       # Ubuntu 24.04 container
+molecule test -s bookworm      # Debian 12 container
+molecule test -s dryrun        # check-mode-only roles
+```
+
+| Scenario | Needs Docker | What it covers |
+| --- | --- | --- |
+| `logic` | no | the OS gate matrix, every template in both mail states, variable wiring, each role's own guards |
+| `default` | yes | 12 roles applied for real on Ubuntu 24.04, then idempotence and host-state assertions |
+| `bookworm` | yes | the same on Debian 12 |
+| `dryrun` | yes | `hostname` and `firewall` in check mode, including the live Cloudflare fetch and CIDR parse |
+
+`molecule test` includes an **idempotence** step: it re-runs the converge and
+fails unless nothing changed. That is the most valuable check here - a role that
+reports changed on every run is the defect class linting cannot find.
+
+### What is not covered
+
+Three roles cannot run in a container, and are covered only by a real host:
+
+- **`auditd`** - the kernel audit subsystem is shared and not writable from a
+  container.
+- **`docker`** - would nest a daemon inside the one running the test.
+- **`cloudflared`** - needs a real tunnel token. Its empty-token guard *is*
+  tested in `logic`.
+
+`hostname` and `firewall` are check-mode only: Docker bind-mounts `/etc/hosts`
+and `/etc/hostname` so they cannot be replaced atomically, and ufw cannot program
+netfilter from a container.
+
+That is 14 of 16 roles exercised in at least one scenario. The base playbook's
+root-to-admin SSH handoff is also not covered - a container has no sshd to
+reconnect through - so a real end-to-end run on a disposable VPS remains worth
+doing before trusting a release.
+
 ## Requirements
 
 - ansible-core 2.16 or newer

@@ -1,0 +1,36 @@
+---
+# hostname and firewall cannot be applied inside a container: Docker
+# bind-mounts /etc/hosts and /etc/hostname (EBUSY on atomic rename), and ufw
+# cannot program netfilter. Running them in check mode still exercises every
+# task, conditional and template - including the firewall's Cloudflare
+# fetch-and-parse path - without needing a real host.
+#
+# Their actual effects on disk and in netfilter are covered by the
+# throwaway-VPS run, not here.
+- name: Dry-run the roles a container cannot host
+  hosts: all
+  become: true
+  check_mode: true
+  tasks:
+    - name: Apply in check mode
+      ansible.builtin.include_role:
+        name: "{{ item }}"
+      loop:
+        - hostname
+        - firewall
+
+- name: Dry-run the firewall with Cloudflare origin ports enabled
+  hosts: all
+  become: true
+  check_mode: true
+  vars:
+    # Exercises the live fetch, the CIDR parse and the port/range product loop -
+    # the most intricate logic in the collection, and off by default.
+    vps_firewall_cloudflare_ports: [8443]
+    vps_firewall_allowed_ports: [80, 443]
+    vps_firewall_cluster_subnet: "10.0.0.0/24"
+    vps_firewall_cluster_ports: [4647, 4648]
+  tasks:
+    - name: Apply the firewall in check mode
+      ansible.builtin.include_role:
+        name: firewall

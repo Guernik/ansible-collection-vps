@@ -1,0 +1,31 @@
+---
+# Run the preflight role with faked facts and record whether it failed, so the
+# matrix can assert on the outcome rather than aborting the play.
+- name: "Case: {{ case.distro }} {{ case.release }} strict={{ case.strict }}"
+  block:
+    - name: Invoke preflight
+      ansible.builtin.include_role:
+        name: preflight
+      vars:
+        ansible_facts:
+          os_family: "{{ case.family }}"
+          distribution: "{{ case.distro }}"
+          distribution_release: "{{ case.release }}"
+        vps_preflight_strict: "{{ case.strict }}"
+
+    - name: Record a pass
+      ansible.builtin.set_fact:
+        case_result: pass
+  rescue:
+    - name: Record a failure
+      ansible.builtin.set_fact:
+        case_result: fail
+
+- name: Assert the outcome matches
+  ansible.builtin.assert:
+    that: case_result == case.expect
+    fail_msg: >-
+      {{ case.distro }} {{ case.release }} (strict={{ case.strict }}) was
+      expected to {{ case.expect }} but did {{ case_result }}.
+    success_msg: "{{ case.distro }} {{ case.release }} strict={{ case.strict }}: {{ case_result }}"
+    quiet: true

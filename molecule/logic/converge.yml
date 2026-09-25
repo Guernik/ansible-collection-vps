@@ -1,0 +1,24 @@
+---
+# Host-free logic tests.
+#
+# ORDER MATTERS. The notification-knob play must come FIRST, because the later
+# plays use `include_vars` to read roles' defaults/main.yml, and include_vars
+# creates host FACTS that persist across plays at a higher precedence than
+# group_vars. Loading a role's empty `vps_notify_email: ""` default would
+# therefore shadow the scenario's knob for every play that follows, and the knob
+# test would fail for a reason that has nothing to do with the collection.
+- name: Shared notification knob
+  ansible.builtin.import_playbook: tests_notify_knob.yml
+
+- name: Logic tests
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Preflight OS gate
+      ansible.builtin.import_tasks: tests_preflight.yml
+
+    - name: Template rendering
+      ansible.builtin.import_tasks: tests_templates.yml
+
+    - name: Variable wiring
+      ansible.builtin.import_tasks: tests_vars.yml
