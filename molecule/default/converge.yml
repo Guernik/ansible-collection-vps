@@ -1,0 +1,56 @@
+---
+# Applies the roles a container can genuinely run, then dry-runs the three that
+# need real kernel access. Mail is left OFF: this proves the base set completes
+# on a host with no SMTP relay, which is the disposable-node case.
+#
+# The root-to-admin handoff in guernik.vps.harden is NOT exercised here - the
+# container has no sshd to reconnect through. The throwaway VPS covers it.
+
+- name: Converge
+  hosts: all
+  become: true
+  tasks:
+    - name: Roles that run for real
+      ansible.builtin.include_role:
+        name: "{{ item }}"
+      loop:
+        - preflight
+        - users
+        - apt_packages
+        - secure_sshd
+        - fail2ban
+        - logwatch
+        - unattended_upgrades
+        - login_alert
+        - shell
+        - postfix
+        - server_status
+
+# Roles a container cannot host, and what covers them instead.
+#
+#   hostname - Docker bind-mounts /etc/hosts and /etc/hostname, so they cannot be
+#              replaced atomically (EBUSY on rename). Check mode exercises the
+#              tasks and conditionals; the throwaway VPS proves the writes.
+#   firewall - ufw cannot program netfilter here. Check mode still covers the
+#              Cloudflare fetch/parse logic and every port conditional.
+#
+# auditd and docker are NOT dry-run: check mode reports their package install as
+# "changed" without installing anything, so the service and repository tasks that
+# follow then fail on a difference the dry run itself caused. Testing them that
+# way measures check mode, not the role. Both are covered on a real host.
+#
+# Tagged `dryrun` and skipped during the idempotence check: check mode always
+# reports "would change" because it never applies anything, so these tasks can
+# never converge and would fail an idempotence run by construction.
+- name: Dry-run the roles a container cannot host
+  hosts: all
+  become: true
+  check_mode: true
+  tags: dryrun
+  tasks:
+    - name: Roles that can only be dry-run here
+      ansible.builtin.include_role:
+        name: "{{ item }}"
+      loop:
+        - hostname
+        - firewall

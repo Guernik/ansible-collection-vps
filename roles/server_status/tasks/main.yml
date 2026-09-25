@@ -1,4 +1,8 @@
 ---
+# A read-only report: every probe uses `failed_when: false` so a missing tool is
+# reported as absent rather than failing the play. `ignore_errors` would also
+# work but prints a red "fatal:" per absent tool, which is noise in a report.
+
 # --- System ---
 
 - name: Get hostname and uptime
@@ -49,7 +53,7 @@
   ansible.builtin.command: ufw status
   register: firewall_status
   changed_when: false
-  ignore_errors: true
+  failed_when: false
 
 # --- Docker ---
 
@@ -59,25 +63,25 @@
   ansible.builtin.command: systemctl is-active docker # noqa command-instead-of-module
   register: docker_status
   changed_when: false
-  ignore_errors: true
+  failed_when: false
 
 - name: Get running containers
   ansible.builtin.command: docker ps --format "table {{ '{{' }}.Names{{ '}}' }}\t{{ '{{' }}.Status{{ '}}' }}\t{{ '{{' }}.Image{{ '}}' }}"
   register: docker_containers
   changed_when: false
-  ignore_errors: true
+  failed_when: false
 
 - name: Get Docker disk usage
   ansible.builtin.command: docker system df
   register: docker_disk
   changed_when: false
-  ignore_errors: true
+  failed_when: false
 
 - name: Get Docker networks
   ansible.builtin.command: docker network ls --format "table {{ '{{' }}.Name{{ '}}' }}\t{{ '{{' }}.Driver{{ '}}' }}\t{{ '{{' }}.Scope{{ '}}' }}"
   register: docker_networks
   changed_when: false
-  ignore_errors: true
+  failed_when: false
 
 # --- Services ---
 
@@ -85,7 +89,7 @@
   ansible.builtin.command: systemctl --failed --no-pager # noqa command-instead-of-module
   register: failed_units
   changed_when: false
-  ignore_errors: true
+  failed_when: false
 
 - name: Get key service statuses
   ansible.builtin.shell: |
@@ -106,13 +110,18 @@
   ansible.builtin.command: fail2ban-client status
   register: fail2ban_status
   changed_when: false
-  ignore_errors: true
+  failed_when: false
 
+# pipefail matters here: without it a failing `apt list` still exits 0 through
+# the pipe and the report shows "0 pending updates", which is a lie rather than
+# an error. With it the task reports no count at all, which is honest.
 - name: Get pending updates count
-  ansible.builtin.shell: apt list --upgradable 2>/dev/null | tail -n +2 | wc -l
+  ansible.builtin.shell:
+    cmd: set -o pipefail && apt list --upgradable 2>/dev/null | tail -n +2 | wc -l
+    executable: /bin/bash
   register: pending_updates
   changed_when: false
-  ignore_errors: true
+  failed_when: false
 
 # --- Report ---
 

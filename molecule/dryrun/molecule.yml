@@ -1,0 +1,62 @@
+---
+# Check-mode-only scenario for the roles a container cannot host for real.
+# roles manage services.
+#
+# Roles needing real kernel access run in check mode instead (see converge.yml):
+# auditd cannot load rules into a container's kernel, docker would mean
+# Docker-in-Docker, and ufw cannot program netfilter from an unprivileged
+# container. Those three are covered by the throwaway-VPS run.
+driver:
+  name: docker
+
+platforms:
+  - name: vps-dryrun
+    image: geerlingguy/docker-ubuntu2404-ansible:latest
+    command: /lib/systemd/systemd
+    # Required for systemd to come up as PID 1: unprivileged, it exits 255.
+    # This grants the container more than the roles themselves need, which is
+    # why auditd, firewall and docker still run in check mode (see converge.yml).
+    privileged: true
+    cgroupns_mode: host
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+    tmpfs:
+      - /run
+      - /tmp
+    pre_build_image: true
+
+provisioner:
+  name: ansible
+  env:
+    ANSIBLE_ROLES_PATH: ../../roles
+  inventory:
+    group_vars:
+      all:
+        vps_admin_user: admin
+        vps_users:
+          admin:
+            sudoer: true
+          deploy:
+            docker: false
+        # Keys are generated under the scenario's own ephemeral directory rather
+        # than the operator's ~/.ssh.
+        vps_ssh_key_dir: "{{ lookup('env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/ssh"
+  config_options:
+    defaults:
+      # `stdout_callback: yaml` resolved to community.general.yaml, removed in
+      # that collection's 12.0.0. result_format is the built-in replacement.
+      result_format: yaml
+
+verifier:
+  name: ansible
+
+scenario:
+  # Nothing is applied, so there is no converged state to re-check: idempotence
+  # is meaningless for a dry run and is left out of the sequence.
+  test_sequence:
+    - dependency
+    - destroy
+    - create
+    - prepare
+    - converge
+    - destroy

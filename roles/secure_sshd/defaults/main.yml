@@ -18,3 +18,11 @@ vps_sshd_log_level: VERBOSE
 # Written as a drop-in rather than replacing /etc/ssh/sshd_config, so the
 # distribution's own config keeps receiving vendor updates.
 vps_sshd_config_path: /etc/ssh/sshd_config.d/sshd_config.conf
+
+# Install openssh-server if absent. A host reached over SSH already has it, so
+# this is normally a no-op; it matters for minimal images and containers.
+vps_sshd_install_server: true
+
+# Name of the sshd unit. Debian and Ubuntu call it `ssh`; some derivatives and
+# RPM-family distributions use `sshd`.
+vps_sshd_service_name: ssh

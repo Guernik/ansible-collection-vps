@@ -7,6 +7,14 @@ exclude_paths:
   - .venv/
   - .github/
   - .ansible/
+  # Shared task files, not playbooks. ansible-lint treats every molecule/*/*.yml
+  # as a playbook, so these are linted via the converge playbooks that import
+  # them rather than on their own.
+  - molecule/logic/tests_preflight.yml
+  - molecule/logic/tests_templates.yml
+  - molecule/logic/tests_vars.yml
+  - molecule/logic/_preflight_case.yml
+  - molecule/logic/_knob_case.yml
 
 # Every variable in this collection is prefixed `vps_` rather than per-role
 # (`firewall_`, `logwatch_`, ...). That is deliberate: several variables are

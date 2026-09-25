@@ -1,0 +1,6 @@
+# Molecule test tooling.
+# Install:  pip install -r requirements-test.txt
+ansible-core>=2.16
+molecule>=25.0
+molecule-plugins[docker]>=23.5
+docker>=7.0

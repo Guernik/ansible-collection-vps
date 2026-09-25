@@ -1,0 +1,44 @@
+---
+# Host-free scenario: exercises decision logic only - the OS gate, template
+# rendering in both mail states, variable precedence and boolean coercion.
+# No container, no privileges, runs in seconds. The container scenarios cover
+# what actually happens on a host.
+driver:
+  name: default
+  options:
+    managed: false
+    ansible_connection_options:
+      ansible_connection: local
+
+platforms:
+  - name: localhost
+
+provisioner:
+  name: ansible
+  inventory:
+    hosts:
+      all:
+        hosts:
+          localhost:
+            ansible_connection: local
+    group_vars:
+      all:
+        # Set here, at the precedence a consuming repository would use, so the
+        # roles' own address defaults resolve against it. Setting it as a task
+        # `vars:` would NOT test the real path: include_vars outranks task vars
+        # and would silently overwrite it with the role default.
+        vps_notify_email: ops@example.com
+        vps_notify_sender: alerts@example.com
+  env:
+    ANSIBLE_ROLES_PATH: ../../roles
+  config_options:
+    defaults:
+      # `stdout_callback: yaml` resolved to community.general.yaml, removed in
+      # that collection's 12.0.0. result_format is the built-in replacement.
+      result_format: yaml
+
+scenario:
+  # No instance to create or destroy, so the usual converge/idempotence
+  # sequence does not apply - this scenario is entirely assertions.
+  test_sequence:
+    - converge

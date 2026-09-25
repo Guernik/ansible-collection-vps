@@ -38,3 +38,6 @@ build_ignore:
   - requirements-dev.txt
   - dist
   - "*.tar.gz"
+  - molecule
+  - collections
+  - requirements-test.txt

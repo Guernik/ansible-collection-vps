@@ -1,0 +1,176 @@
+---
+# Every template must render in both mail states. A Jinja error or a branch that
+# emits the wrong thing is invisible until a host applies it, so render them
+# here and assert on the content.
+
+- name: Render sshd config on a non-default port
+  ansible.builtin.set_fact:
+    rendered_sshd: "{{ lookup('template', '../../roles/secure_sshd/templates/sshd_config.j2') }}"
+  vars:
+    vps_ssh_port: 2222
+    vps_sshd_permit_root_login: prohibit-password
+    vps_sshd_password_authentication: false
+    vps_sshd_pubkey_authentication: true
+    vps_sshd_permit_empty_passwords: false
+    vps_sshd_max_auth_tries: 3
+    vps_sshd_max_sessions: 2
+    vps_sshd_client_alive_count_max: 2
+    vps_sshd_allow_agent_forwarding: false
+    vps_sshd_log_level: VERBOSE
+
+- name: Assert sshd honours the port and stays key-only
+  ansible.builtin.assert:
+    that:
+      - "'Port 2222' in rendered_sshd"
+      - "'PasswordAuthentication no' in rendered_sshd"
+      - "'KbdInteractiveAuthentication no' in rendered_sshd"
+      - "'PermitRootLogin prohibit-password' in rendered_sshd"
+      - "'AllowAgentForwarding no' in rendered_sshd"
+    fail_msg: "sshd template lost a hardening directive or ignored vps_ssh_port"
+    quiet: true
+
+- name: Render fail2ban with mail off
+  ansible.builtin.set_fact:
+    f2b_off: "{{ lookup('template', '../../roles/fail2ban/templates/jail.local.j2') }}"
+  vars:
+    vps_fail2ban_mail_enabled: false
+    vps_ssh_port: 2222
+    vps_fail2ban_banaction: ufw
+    vps_fail2ban_banaction_allports: ufw
+    vps_fail2ban_sshd_enabled: true
+    vps_fail2ban_recidive_enabled: true
+    vps_fail2ban_findtime: 600
+    vps_fail2ban_bantime: 3600
+    vps_fail2ban_maxretry: 3
+
+- name: Render fail2ban with mail on
+  ansible.builtin.set_fact:
+    f2b_on: "{{ lookup('template', '../../roles/fail2ban/templates/jail.local.j2') }}"
+  vars:
+    vps_fail2ban_mail_enabled: true
+    vps_fail2ban_mta: sendmail
+    vps_fail2ban_sender: alerts@example.com
+    vps_fail2ban_destemail: ops@example.com
+    vps_ssh_port: 2222
+    vps_fail2ban_banaction: ufw
+    vps_fail2ban_banaction_allports: ufw
+    vps_fail2ban_sshd_enabled: true
+    vps_fail2ban_recidive_enabled: true
+    vps_fail2ban_findtime: 600
+    vps_fail2ban_bantime: 3600
+    vps_fail2ban_maxretry: 3
+
+# Mail off must still ban: the jail falls back to the plain action rather than
+# losing enforcement along with the notification.
+- name: Assert fail2ban bans regardless, and only mails when asked
+  ansible.builtin.assert:
+    that:
+      - "'action                  = %(action_)s' in f2b_off"
+      - "'sendmail' not in f2b_off"
+      - "'banaction               = ufw' in f2b_off"
+      - "'port                    = 2222' in f2b_off"
+      - "'sendmail-whois-matches-country' in f2b_on"
+      - "'dest=ops@example.com' in f2b_on"
+      - "'sender=alerts@example.com' in f2b_on"
+      - "'banaction               = ufw' in f2b_on"
+    fail_msg: "fail2ban jail did not switch correctly between mail states"
+    quiet: true
+
+- name: Render unattended-upgrades with mail off
+  ansible.builtin.set_fact:
+    uu_off: "{{ lookup('template', '../../roles/unattended_upgrades/templates/51unattended-upgrades-custom.j2') }}"
+  vars:
+    vps_unattended_mail_enabled: false
+    vps_unattended_origins: ["${distro_id}:${distro_codename}-security"]
+    vps_unattended_blacklist: []
+    vps_unattended_remove_unused_kernels: true
+    vps_unattended_remove_unused_dependencies: true
+    vps_unattended_automatic_reboot: true
+    vps_unattended_reboot_time: "08:00"
+
+- name: Render unattended-upgrades with mail on and a blacklist
+  ansible.builtin.set_fact:
+    uu_on: "{{ lookup('template', '../../roles/unattended_upgrades/templates/51unattended-upgrades-custom.j2') }}"
+  vars:
+    vps_unattended_mail_enabled: true
+    vps_unattended_mail: ops@example.com
+    vps_unattended_mail_report: only-on-error
+    vps_unattended_origins: ["${distro_id}:${distro_codename}-security"]
+    vps_unattended_blacklist: [docker-ce, containerd.io]
+    vps_unattended_remove_unused_kernels: true
+    vps_unattended_remove_unused_dependencies: true
+    vps_unattended_automatic_reboot: false
+    vps_unattended_reboot_time: "08:00"
+
+- name: Assert unattended-upgrades branches correctly
+  ansible.builtin.assert:
+    that:
+      - "'Unattended-Upgrade::Mail' not in uu_off"
+      - "'Package-Blacklist' not in uu_off"
+      - "'Automatic-Reboot \"true\"' in uu_off"
+      - "'Automatic-Reboot-Time \"08:00\"' in uu_off"
+      - "'Unattended-Upgrade::Mail \"ops@example.com\"' in uu_on"
+      - "'\"docker-ce\"' in uu_on"
+      # Reboot off must also drop the time, not leave a dangling schedule.
+      - "'Automatic-Reboot \"false\"' in uu_on"
+      - "'Automatic-Reboot-Time' not in uu_on"
+    fail_msg: "unattended-upgrades template branched incorrectly"
+    quiet: true
+
+- name: Render the postfix relay config
+  ansible.builtin.set_fact:
+    postfix_cf: "{{ lookup('template', '../../roles/postfix/templates/main.cf.j2') }}"
+  vars:
+    vps_postfix_hostname: box.example.com
+    vps_postfix_relay_host: "[smtp.example.com]:587"
+    vps_postfix_ca_cert: /etc/ssl/certs/ca-certificates.crt
+
+# TLS must be verified, not merely attempted: `may` would silently allow
+# cleartext delivery of alerts.
+- name: Assert postfix verifies TLS and binds loopback only
+  ansible.builtin.assert:
+    that:
+      - "'relayhost = [smtp.example.com]:587' in postfix_cf"
+      - "'smtp_tls_security_level = secure' in postfix_cf"
+      - "'inet_interfaces = loopback-only' in postfix_cf"
+      - "'myhostname = box.example.com' in postfix_cf"
+    fail_msg: "postfix main.cf lost a TLS or exposure guard"
+    quiet: true
+
+- name: Render the login alert script
+  ansible.builtin.set_fact:
+    alert_sh: "{{ lookup('template', '../../roles/login_alert/templates/login-alert.sh.j2') }}"
+  vars:
+    vps_login_alert_email: ops@example.com
+    vps_login_alert_lookup_ip: true
+
+# A pam_exec session hook that exits non-zero can deny the login, so the script
+# must end in an unconditional exit 0.
+- name: Assert the alert script cannot block a login
+  ansible.builtin.assert:
+    that:
+      - "'To: ops@example.com' in alert_sh"
+      - "alert_sh.rstrip().endswith('exit 0')"
+      - "'open_session' in alert_sh"
+    fail_msg: "login-alert.sh could deny a login or lost its recipient"
+    quiet: true
+
+- name: Render logwatch config
+  ansible.builtin.set_fact:
+    lw: "{{ lookup('template', '../../roles/logwatch/templates/logwatch.conf.j2') }}"
+  vars:
+    vps_logwatch_email_to: ops@example.com
+    vps_logwatch_email_from: ""
+    vps_logwatch_detail: Low
+    vps_logwatch_range: yesterday
+    vps_logwatch_service: All
+    vps_logwatch_format: text
+    vps_logwatch_output: mail
+
+- name: Assert logwatch omits an empty sender rather than emitting a blank line
+  ansible.builtin.assert:
+    that:
+      - "'MailTo = ops@example.com' in lw"
+      - "'MailFrom' not in lw"
+    fail_msg: "logwatch emitted an empty MailFrom"
+    quiet: true

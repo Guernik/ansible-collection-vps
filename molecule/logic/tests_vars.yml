@@ -1,0 +1,126 @@
+---
+# The collection's public interface: one notification address configures every
+# mail-capable role, the ssh port is shared across three roles, and boolean
+# flags must survive being passed as strings from the command line.
+
+- name: Load the mail roles' defaults for the static assertions
+  ansible.builtin.include_vars:
+    file: "../../roles/{{ item }}/defaults/main.yml"
+  loop: [fail2ban, logwatch, login_alert, unattended_upgrades, postfix]
+
+- name: Assert the mail roles default to off
+  ansible.builtin.assert:
+    that:
+      - not (vps_postfix_enabled | bool)
+      - not (vps_fail2ban_mail_enabled | bool)
+      - not (vps_logwatch_enabled | bool)
+      - not (vps_login_alert_enabled | bool)
+      - not (vps_unattended_mail_enabled | bool)
+    fail_msg: >-
+      A mail feature defaults to on. A host with no relay would then fail or
+      silently drop alerts.
+    quiet: true
+
+# ansible-core 2.19 rejects a string as a conditional result, so `-e flag=true`
+# breaks any bare `when: flag`. Every flag is filtered through `| bool`; this
+# asserts none regress.
+- name: Find boolean conditionals missing a bool filter
+  ansible.builtin.find:
+    paths: ../../roles
+    patterns: "*.yml"
+    recurse: true
+    contains: '^\s+when:\s+vps_[a-z0-9_]+\s*$'
+  register: bare_conditionals
+
+- name: Assert every flag conditional is coerced
+  ansible.builtin.assert:
+    that: bare_conditionals.files | length == 0
+    fail_msg: >-
+      These files use a bare `when: vps_*` conditional, which fails when the
+      value arrives as a string from -e:
+      {{ bare_conditionals.files | map(attribute='path') | list }}
+    quiet: true
+
+- name: Load the roles that share the ssh port
+  ansible.builtin.include_vars:
+    file: "../../roles/{{ item }}/defaults/main.yml"
+  loop: [secure_sshd, firewall]
+
+- name: Assert the ssh port default agrees across roles
+  ansible.builtin.assert:
+    that: vps_ssh_port == 22
+    fail_msg: "secure_sshd and firewall disagree on the default ssh port"
+    quiet: true
+
+- name: Assert secrets default to empty
+  ansible.builtin.assert:
+    that:
+      - vps_postfix_sasl_pass | length == 0
+      - vps_postfix_relay_host | length == 0
+      - vps_postfix_sasl_user | length == 0
+    fail_msg: >-
+      A secret-bearing variable has a non-empty default. This collection is
+      public: credentials must come from the caller.
+    quiet: true
+
+- name: Load the users role defaults
+  ansible.builtin.include_vars:
+    file: ../../roles/users/defaults/main.yml
+
+- name: Assert the users role is safe by default
+  ansible.builtin.assert:
+    that:
+      # No implicit users: an empty dict is asserted against in the role itself.
+      - vps_users | length == 0
+      # Removing a key from vps_users must actually revoke it on the host.
+      - vps_authorized_keys_exclusive | bool
+      - vps_users_lock_password | bool
+      # Re-running must not rotate keys behind the operator's back.
+      - not (vps_rotate_ssh_keys | bool)
+    fail_msg: "a users-role default weakened"
+    quiet: true
+
+- name: Load the firewall defaults
+  ansible.builtin.include_vars:
+    file: ../../roles/firewall/defaults/main.yml
+
+- name: Assert the firewall denies by default and Cloudflare is opt-in
+  ansible.builtin.assert:
+    that:
+      - vps_firewall_default_incoming == 'deny'
+      - vps_firewall_allowed_ports | length == 0
+      - vps_firewall_cloudflare_ports | length == 0
+      - vps_firewall_cluster_subnet | length == 0
+      # Cluster ports are only ever opened to a named subnet, never the world.
+      - vps_firewall_cluster_ports | length == 0
+    fail_msg: "the firewall no longer defaults to closed"
+    quiet: true
+
+# --- cloudflared ------------------------------------------------------------
+# The role cannot be applied without a real tunnel, but its guard is testable:
+# an empty token must stop the run rather than install a connector that can
+# never connect.
+- name: Run cloudflared with no token
+  block:
+    - name: Include cloudflared
+      ansible.builtin.include_role:
+        name: cloudflared
+      vars:
+        vps_cloudflared_tunnel_token: ""
+
+    - name: Record that it did not refuse
+      ansible.builtin.set_fact:
+        cloudflared_refused: false
+  rescue:
+    - name: Record that it refused
+      ansible.builtin.set_fact:
+        cloudflared_refused: >-
+          {{ 'tunnel_token is empty' in (ansible_failed_result.msg | default('')) }}
+
+- name: Assert cloudflared refuses an empty token
+  ansible.builtin.assert:
+    that: cloudflared_refused | bool
+    fail_msg: >-
+      cloudflared did not refuse an empty token, so it would install a connector
+      that can never authenticate.
+    quiet: true

@@ -1,0 +1,24 @@
+---
+# Scenario setup, not part of what is under test.
+#
+# ufw is installed for real because check mode does not install it, and the
+# rule tasks that follow then fail for want of the binary rather than for any
+# reason to do with the role. With ufw present, check mode exercises the rule
+# logic - port conditionals, the Cloudflare fetch and CIDR parse, the
+# subnet-gated cluster ports - which is the part worth testing here.
+#
+# The rules are never applied: check mode stops ufw from touching netfilter,
+# which a container cannot do anyway.
+- name: Prepare
+  hosts: all
+  become: true
+  tasks:
+    - name: Refresh the APT cache
+      ansible.builtin.apt:
+        update_cache: true
+      changed_when: false
+
+    - name: Install ufw so the rule tasks have their binary
+      ansible.builtin.apt:
+        name: ufw
+        state: present

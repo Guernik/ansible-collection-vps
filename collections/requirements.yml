@@ -1,0 +1,10 @@
+---
+# Collections the roles use at runtime. Declared in galaxy.yml too, but repeated
+# here so CI and local development can install them without building first.
+collections:
+  - name: community.general
+    version: ">=10.0.0"
+  - name: community.docker
+    version: ">=4.0.0"
+  - name: ansible.posix
+    version: ">=2.0.0"

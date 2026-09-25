@@ -1,0 +1,60 @@
+---
+# Proves that setting vps_notify_email alone configures every mail-capable role.
+#
+# Each of those roles opens with an assert that its address is non-empty when the
+# role is enabled. Running the roles with only the shared knob set therefore
+# tests the wiring through the roles themselves: if one stopped deriving its
+# address from the knob, its own assert would fail here.
+#
+# Runs on localhost with no target host, so only the leading assert can execute -
+# anything touching apt is skipped by tag. This must be the FIRST play in the
+# scenario; see converge.yml for why.
+- name: One notification address must configure every mail-capable role
+  hosts: all
+  gather_facts: false
+  vars:
+    vps_fail2ban_mail_enabled: true
+    vps_logwatch_enabled: true
+    vps_login_alert_enabled: true
+    vps_unattended_mail_enabled: true
+    vps_postfix_enabled: true
+    vps_postfix_relay_host: "[smtp.example.com]:587"
+    vps_postfix_sasl_user: relay@example.com
+    vps_postfix_sasl_pass: not-a-real-password
+  tasks:
+    - name: Confirm the knob reaches this play before relying on it
+      ansible.builtin.assert:
+        that:
+          - vps_notify_email == 'ops@example.com'
+          - vps_notify_sender == 'alerts@example.com'
+        fail_msg: >-
+          The scenario's group_vars knob is not reaching this play, so the checks
+          below would pass for the wrong reason. If an earlier play used
+          include_vars on a role's defaults, that shadows group_vars - this play
+          must run first.
+        quiet: true
+
+    # Each role's address assert is its first task, so running only that task
+    # proves the derivation. Every later task needs apt or systemd, which this
+    # host does not have, so the run stops at the first one.
+    - name: Run each mail role up to its address assert
+      ansible.builtin.include_tasks: _knob_case.yml
+      loop:
+        - fail2ban
+        - logwatch
+        - login_alert
+        - unattended_upgrades
+        - postfix
+      loop_control:
+        loop_var: knob_role
+
+    - name: Assert no role rejected the shared address
+      ansible.builtin.assert:
+        that: knob_failures | default([]) | length == 0
+        fail_msg: >-
+          These roles reported a missing address although vps_notify_email is
+          set, so they no longer derive from the shared knob:
+          {{ knob_failures | default([]) }}
+        success_msg: >-
+          vps_notify_email configures all five mail-capable roles.
+        quiet: true

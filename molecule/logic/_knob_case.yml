@@ -1,0 +1,17 @@
+---
+# Run one role and record whether it complained about a missing address.
+# Everything after its leading assert needs apt or systemd, so failures of that
+# kind are expected here and are not what is being measured - only an
+# address-related failure counts.
+- name: "Check {{ knob_role }} accepts the shared address"
+  block:
+    - name: Include {{ knob_role }}
+      ansible.builtin.include_role:
+        name: "{{ knob_role }}"
+  rescue:
+    - name: Record only an address-related failure
+      ansible.builtin.set_fact:
+        knob_failures: >-
+          {{ (knob_failures | default([]))
+             + ([knob_role] if ('address is set' in (ansible_failed_result.msg | default('')))
+                else []) }}
